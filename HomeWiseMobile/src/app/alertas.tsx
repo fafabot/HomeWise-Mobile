@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,48 +9,66 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { observarUltimaLeitura, Leitura } from '@/services/leiturasService';
 
 export default function AlertasScreen() {
-  const alertas: {
-    id: number;
-    tipo: string;
-    titulo: string;
-    local: string;
-    descricao: string;
-    icone: keyof typeof Ionicons.glyphMap;
-    corBorda: string;
-    corFundo: string;
-    corTexto: string;
-  }[] = [
-    {
+  const router = useRouter();
+  const [leitura, setLeitura] = useState<Leitura | null>(null);
+
+  useEffect(() => {
+    const unsub = observarUltimaLeitura((dados) => {
+      setLeitura(dados);
+    });
+    return () => unsub();
+  }, []);
+
+  // Regras reais de anomalia baseadas nos sensores
+  const vazamentoAtivo = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const potenciaExcessiva = leitura ? (leitura.potencia_w > 3500) : false;
+  const tensaoAnormal = leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
+
+  const alertas = [
+    ...(vazamentoAtivo ? [{
       id: 1,
       tipo: 'critico',
-      titulo: 'Possível vazamento',
-      local: 'Banheiro • Hoje, 08:30',
-      descricao: 'Consumo 45% acima do padrão detectado nas últimas 2 horas.',
-      icone: 'warning',
+      titulo: 'Possível vazamento detectado',
+      local: `Sensor YF-S201 • Vazão contínua de ${leitura?.vazao_l_min.toFixed(1)} L/min`,
+      descricao: 'Foi identificada uma vazão persistente de água sem interrupção. Verifique torneiras, descargas ou tubulações.',
+      icone: 'warning' as const,
       corBorda: '#7f1d1d',
       corFundo: '#261414',
       corTexto: '#f87171'
-    },
-    {
+    }] : []),
+    ...(potenciaExcessiva ? [{
       id: 2,
       tipo: 'aviso',
-      titulo: 'Consumo acima da média',
-      local: 'Energia • Ontem, 19:15',
-      descricao: '14% acima do padrão habitual deste horário.',
-      icone: 'flash',
+      titulo: 'Pico de consumo elétrico',
+      local: `Medidor PZEM-004T • ${leitura?.potencia_w.toFixed(0)} W`,
+      descricao: 'A potência ativa da residência ultrapassou 3.500 W. Verifique equipamentos de alto consumo como chuveiro ou ar-condicionado.',
+      icone: 'flash' as const,
       corBorda: '#854d0e',
       corFundo: '#2e2009',
       corTexto: '#facc15'
-    },
-    {
+    }] : []),
+    ...(tensaoAnormal ? [{
       id: 3,
+      tipo: 'aviso',
+      titulo: 'Instabilidade na tensão da rede',
+      local: `Rede elétrica • ${leitura?.tensao_v.toFixed(0)} V`,
+      descricao: 'A tensão alternada está fora da faixa nominal recomendada (127V ± 10%).',
+      icone: 'speedometer' as const,
+      corBorda: '#854d0e',
+      corFundo: '#2e2009',
+      corTexto: '#facc15'
+    }] : []),
+    {
+      id: 4,
       tipo: 'sucesso',
-      titulo: 'Economia alcançada!',
-      local: 'Residência • Você economizou',
-      descricao: 'R$ 32,50 este mês em comparação com a meta definida.',
-      icone: 'leaf',
+      titulo: 'Monitoramento HomeWise Ativo',
+      local: `Dispositivo ${leitura?.dispositivo_id || 'central_homewise_01'}`,
+      descricao: leitura ? 'Os sensores de vazão e grandezas elétricas estão operando e transmitindo normalmente.' : 'Aguardando o primeiro envio de dados do ESP8266.',
+      icone: 'shield-checkmark' as const,
       corBorda: '#14532d',
       corFundo: '#0b2419',
       corTexto: '#4ade80'
@@ -64,34 +82,32 @@ export default function AlertasScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7}>
-            <Ionicons name="menu-outline" size={20} color="#ffffff" />
+          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Alertas</Text>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7}>
-            <Ionicons name="notifications-outline" size={20} color="#ffffff" />
-          </TouchableOpacity>
+          <Text style={styles.tituloHeader}>Alertas e Diagnóstico</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <Text style={styles.subtituloPagina}>Notificações e anomalias da sua residência</Text>
+        <Text style={styles.subtituloPagina}>
+          Regras de negócio e monitoramento contínuo da sua residência
+        </Text>
 
-        {/* Lista de Alertas */}
+        {/* Lista de Alertas Baseada no Estado Real dos Sensores */}
         {alertas.map((alerta) => (
-          <TouchableOpacity
+          <View
             key={alerta.id}
             style={[styles.cardAlerta, { backgroundColor: alerta.corFundo, borderColor: alerta.corBorda }]}
-            activeOpacity={0.8}
           >
             <View style={styles.alertaTopo}>
               <View style={styles.alertaTituloLinha}>
                 <Ionicons name={alerta.icone} size={18} color={alerta.corTexto} />
                 <Text style={[styles.tituloAlerta, { color: alerta.corTexto }]}>{alerta.titulo}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
             </View>
             <Text style={styles.localAlerta}>{alerta.local}</Text>
             <Text style={styles.descAlerta}>{alerta.descricao}</Text>
-          </TouchableOpacity>
+          </View>
         ))}
 
       </ScrollView>
@@ -116,16 +132,6 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   botaoVoltar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  botaoSino: {
     width: 40,
     height: 40,
     borderRadius: 20,

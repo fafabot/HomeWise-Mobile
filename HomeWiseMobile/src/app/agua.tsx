@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,19 +9,55 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
 export default function AguaScreen() {
+  const router = useRouter();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
+  const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historico, setHistorico] = useState<Leitura[]>([]);
 
-  const barrasAgua = [
-    { hora: '00h', valor: 30 },
-    { hora: '04h', valor: 10 },
-    { hora: '08h', valor: 120 },
-    { hora: '12h', valor: 85 },
-    { hora: '16h', valor: 60 },
-    { hora: '20h', valor: 140 },
-    { hora: '24h', valor: 45 }
-  ];
+  useEffect(() => {
+    const unsubLeitura = observarUltimaLeitura((dados) => {
+      setLeitura(dados);
+    });
+
+    const unsubHistorico = observarHistorico((dados) => {
+      setHistorico(dados);
+    });
+
+    return () => {
+      unsubLeitura();
+      unsubHistorico();
+    };
+  }, []);
+
+  // Dados reais do sensor YF-S201
+  const litrosHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
+  const vazaoLMin = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  const previsaoMesLitros = (Number(litrosHoje) * 30).toFixed(0);
+
+  // Calcula medias reais do historico
+  const mediaDiariaLitros = historico.length > 0
+    ? (historico.reduce((acc, c) => acc + c.consumo_agua_litros, 0) / historico.length).toFixed(1)
+    : litrosHoje;
+
+  // Monta barras dinâmicas a partir das ultimas leituras do sensor
+  const barras = historico.length >= 7
+    ? historico.slice(-7).map((item) => ({
+        hora: new Date(item.criado_em!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        valor: Math.max(item.vazao_l_min * 10, 5) // escala visual
+      }))
+    : [
+        { hora: '00h', valor: 10 },
+        { hora: '04h', valor: 5 },
+        { hora: '08h', valor: 45 },
+        { hora: '12h', valor: 30 },
+        { hora: '16h', valor: 20 },
+        { hora: '20h', valor: 55 },
+        { hora: 'Agora', valor: leitura ? Math.max(leitura.vazao_l_min * 10, 8) : 15 }
+      ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,11 +66,11 @@ export default function AguaScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7}>
-            <Ionicons name="menu-outline" size={20} color="#ffffff" />
+          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Água</Text>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
             <Ionicons name="notifications-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
@@ -54,34 +90,34 @@ export default function AguaScreen() {
           ))}
         </View>
 
-        {/* Card Principal de Agua */}
+        {/* Card Principal de Agua Conectado ao YF-S201 */}
         <View style={styles.cardAguaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="water" size={18} color="#38bdf8" />
-            <Text style={styles.labelConsumo}>Consumo hoje</Text>
+            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
           </View>
-          <Text style={styles.valorConsumo}>4.250 <Text style={styles.unidade}>L</Text></Text>
+          <Text style={styles.valorConsumo}>{litrosHoje} <Text style={styles.unidade}>L</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Vazão instantânea</Text>
-              <Text style={styles.infoValor}>12,4 L/min</Text>
+              <Text style={styles.infoValor}>{vazaoLMin} L/min</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.infoLabel}>Previsão do mês</Text>
-              <Text style={styles.infoValor}>9.600 L</Text>
+              <Text style={styles.infoLabel}>Projeção mensal</Text>
+              <Text style={styles.infoValor}>{previsaoMesLitros} L</Text>
             </View>
           </View>
         </View>
 
-        {/* Grafico de Barras */}
+        {/* Grafico de Barras Dinâmico */}
         <View style={styles.cardGrafico}>
-          <Text style={styles.tituloGrafico}>Consumo diário (L)</Text>
+          <Text style={styles.tituloGrafico}>Atividade de fluxo de água nas últimas leituras</Text>
           <View style={styles.graficoContainer}>
-            {barrasAgua.map((barra, index) => {
-              const alturaPorcentagem = (barra.valor / 150) * 120;
+            {barras.map((barra, index) => {
+              const alturaPorcentagem = Math.min((barra.valor / 70) * 120, 130);
               return (
                 <View key={index} style={styles.colunaBarra}>
-                  <View style={[styles.barraPreenchida, { height: alturaPorcentagem }]} />
+                  <View style={[styles.barraPreenchida, { height: Math.max(alturaPorcentagem, 12) }]} />
                   <Text style={styles.labelHora}>{barra.hora}</Text>
                 </View>
               );
@@ -92,22 +128,22 @@ export default function AguaScreen() {
         {/* Resumo e Medias */}
         <View style={styles.cardResumo}>
           <View style={styles.resumoHeader}>
-            <Text style={styles.resumoTitulo}>Resumo</Text>
-            <TouchableOpacity>
-              <Text style={styles.resumoLink}>Ver todos</Text>
+            <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
+            <TouchableOpacity onPress={() => router.push('/')}>
+              <Text style={styles.resumoLink}>Ver no painel</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média diária</Text>
-            <Text style={styles.resumoValor}>312 L</Text>
+            <Text style={styles.resumoLabel}>Média diária calculada</Text>
+            <Text style={styles.resumoValor}>{mediaDiariaLitros} L</Text>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média dos últimos 7 dias</Text>
-            <Text style={styles.resumoValor}>335 L</Text>
+            <Text style={styles.resumoLabel}>Previsão para 30 dias</Text>
+            <Text style={styles.resumoValor}>{previsaoMesLitros} L</Text>
           </View>
           <View style={[styles.resumoLinha, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resumoLabel}>Mês anterior</Text>
-            <Text style={styles.resumoValor}>8.950 L</Text>
+            <Text style={styles.resumoLabel}>Total de medições registradas</Text>
+            <Text style={styles.resumoValor}>{historico.length}</Text>
           </View>
         </View>
 

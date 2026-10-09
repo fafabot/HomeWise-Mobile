@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,19 +9,55 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
 export default function EnergiaScreen() {
+  const router = useRouter();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
+  const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historico, setHistorico] = useState<Leitura[]>([]);
 
-  const barrasHoras = [
-    { hora: '00h', valor: 2 },
-    { hora: '04h', valor: 1.5 },
-    { hora: '08h', valor: 7 },
-    { hora: '12h', valor: 4.5 },
-    { hora: '16h', valor: 3.5 },
-    { hora: '20h', valor: 9.5 },
-    { hora: '24h', valor: 5 }
-  ];
+  useEffect(() => {
+    const unsubLeitura = observarUltimaLeitura((dados) => {
+      setLeitura(dados);
+    });
+
+    const unsubHistorico = observarHistorico((dados) => {
+      setHistorico(dados);
+    });
+
+    return () => {
+      unsubLeitura();
+      unsubHistorico();
+    };
+  }, []);
+
+  // Dados reais
+  const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
+  const potenciaKw = leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  const previsaoMes = (Number(energiaHoje) * 30).toFixed(1);
+
+  // Calcula medias reais do historico
+  const mediaDiaria = historico.length > 0
+    ? (historico.reduce((acc, c) => acc + c.energia_kwh, 0) / historico.length).toFixed(2)
+    : energiaHoje;
+
+  // Monta barras dinâmicas a partir das ultimas leituras do Firestore
+  const barras = historico.length >= 7
+    ? historico.slice(-7).map((item, idx) => ({
+        hora: new Date(item.criado_em!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        valor: Math.max(item.potencia_w / 200, 1) // escala para visualizacao
+      }))
+    : [
+        { hora: '00h', valor: 2 },
+        { hora: '04h', valor: 1.5 },
+        { hora: '08h', valor: 7 },
+        { hora: '12h', valor: 4.5 },
+        { hora: '16h', valor: 3.5 },
+        { hora: '20h', valor: 9.5 },
+        { hora: 'Agora', valor: leitura ? Math.max((leitura.potencia_w / 200), 1.5) : 5 }
+      ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,11 +66,11 @@ export default function EnergiaScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7}>
-            <Ionicons name="menu-outline" size={20} color="#ffffff" />
+          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Energia</Text>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
             <Ionicons name="notifications-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
@@ -54,34 +90,34 @@ export default function EnergiaScreen() {
           ))}
         </View>
 
-        {/* Card Principal de Energia */}
+        {/* Card Principal de Energia Conectado ao PZEM-004T */}
         <View style={styles.cardEnergiaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="flash" size={18} color="#86efac" />
-            <Text style={styles.labelConsumo}>Consumo hoje</Text>
+            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
           </View>
-          <Text style={styles.valorConsumo}>8,7 <Text style={styles.unidade}>kWh</Text></Text>
+          <Text style={styles.valorConsumo}>{energiaHoje} <Text style={styles.unidade}>kWh</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Potência instantânea</Text>
-              <Text style={styles.infoValor}>1,35 kW</Text>
+              <Text style={styles.infoValor}>{potenciaKw} kW ({leitura?.potencia_w?.toFixed(0) || '0'} W)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.infoLabel}>Previsão do mês</Text>
-              <Text style={styles.infoValor}>230 kWh</Text>
+              <Text style={styles.infoLabel}>Tensão na rede</Text>
+              <Text style={styles.infoValor}>{leitura?.tensao_v?.toFixed(1) || '0'} V</Text>
             </View>
           </View>
         </View>
 
-        {/* Grafico de Barras */}
+        {/* Grafico de Barras Dinâmico */}
         <View style={styles.cardGrafico}>
-          <Text style={styles.tituloGrafico}>Consumo nas últimas 24h (kWh)</Text>
+          <Text style={styles.tituloGrafico}>Padrão de potência nas últimas leituras</Text>
           <View style={styles.graficoContainer}>
-            {barrasHoras.map((barra, index) => {
-              const alturaPorcentagem = (barra.valor / 10) * 120;
+            {barras.map((barra, index) => {
+              const alturaPorcentagem = Math.min((barra.valor / 10) * 120, 130);
               return (
                 <View key={index} style={styles.colunaBarra}>
-                  <View style={[styles.barraPreenchida, { height: alturaPorcentagem }]} />
+                  <View style={[styles.barraPreenchida, { height: Math.max(alturaPorcentagem, 12) }]} />
                   <Text style={styles.labelHora}>{barra.hora}</Text>
                 </View>
               );
@@ -89,25 +125,25 @@ export default function EnergiaScreen() {
           </View>
         </View>
 
-        {/* Resumo e Medias */}
+        {/* Resumo e Medias Calculadas */}
         <View style={styles.cardResumo}>
           <View style={styles.resumoHeader}>
-            <Text style={styles.resumoTitulo}>Resumo</Text>
-            <TouchableOpacity>
-              <Text style={styles.resumoLink}>Ver todos</Text>
+            <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
+            <TouchableOpacity onPress={() => router.push('/')}>
+              <Text style={styles.resumoLink}>Ver no painel</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média diária</Text>
-            <Text style={styles.resumoValor}>7,2 kWh</Text>
+            <Text style={styles.resumoLabel}>Média diária calculada</Text>
+            <Text style={styles.resumoValor}>{mediaDiaria} kWh</Text>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média dos últimos 7 dias</Text>
-            <Text style={styles.resumoValor}>7,8 kWh</Text>
+            <Text style={styles.resumoLabel}>Previsão para 30 dias</Text>
+            <Text style={styles.resumoValor}>{previsaoMes} kWh</Text>
           </View>
           <View style={[styles.resumoLinha, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resumoLabel}>Mês anterior</Text>
-            <Text style={styles.resumoValor}>205 kWh</Text>
+            <Text style={styles.resumoLabel}>Total de medições recebidas</Text>
+            <Text style={styles.resumoValor}>{historico.length}</Text>
           </View>
         </View>
 

@@ -6,25 +6,70 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { observarUltimaLeitura, Leitura } from '@/services/leiturasService';
+import { useRouter } from 'expo-router';
+import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+
+// Tarifas medias para calculo financeiro (R$ por unidade)
+const TARIFA_AGUA_POR_LITRO = 0.0085; // ~R$ 8,50 por m³ (1000L)
+const TARIFA_ENERGIA_KWH = 0.85;      // ~R$ 0,85 por kWh
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historico, setHistorico] = useState<Leitura[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = observarUltimaLeitura((dados) => {
+    // Escuta a leitura mais recente em tempo real do ESP8266
+    const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setCarregando(false);
     });
-    return () => unsubscribe();
+
+    // Escuta o historico para calculo de acumulados
+    const unsubHistorico = observarHistorico((dados) => {
+      setHistorico(dados);
+    });
+
+    return () => {
+      unsubLeitura();
+      unsubHistorico();
+    };
   }, []);
 
-  const aguaLitros = leitura ? leitura.consumo_agua_litros.toFixed(0) : '342';
-  const energiaKwh = leitura ? leitura.energia_kwh.toFixed(1) : '8,7';
-  const potenciaW = leitura ? leitura.potencia_w.toFixed(0) : '1350';
+  // Calculos dinamicos a partir das leituras reais do ESP
+  const aguaHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
+  const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
+  const vazaoAtual = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  const potenciaAtual = leitura ? Number(leitura.potencia_w).toFixed(0) : '0';
+  const tensaoAtual = leitura ? Number(leitura.tensao_v).toFixed(0) : '0';
+
+  // Acumulado do mes (estimado ou somado do historico)
+  const aguaMes = historico.length > 0
+    ? historico.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(0)
+    : (leitura ? (leitura.consumo_agua_litros * 25).toFixed(0) : '0');
+
+  const energiaMes = historico.length > 0
+    ? historico.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(1)
+    : (leitura ? (leitura.energia_kwh * 25).toFixed(1) : '0.0');
+
+  // Custo estimado do mes
+  const custoAgua = Number(aguaMes) * TARIFA_AGUA_POR_LITRO;
+  const custoEnergia = Number(energiaMes) * TARIFA_ENERGIA_KWH;
+  const totalPrevisto = (custoAgua + custoEnergia).toFixed(2);
+
+  // Deteccao automatica de anomalias/vazamento
+  const possivelVazamento = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const consumoElevado = leitura ? (leitura.potencia_w > 3500) : false;
+
+  const dataHoraUltimaLeitura = leitura?.criado_em
+    ? new Date(leitura.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '--:--:--';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,42 +89,43 @@ export default function HomeScreen() {
               <Text style={styles.subSaudacao}>Resumo da sua residência</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
             <Ionicons name="notifications-outline" size={20} color="#ffffff" />
+            {(possivelVazamento || consumoElevado) && <View style={styles.badgeNotif} />}
           </TouchableOpacity>
         </View>
 
-        {/* Linha dos Cards de Agua e Energia */}
+        {/* Linha dos Cards de Agua e Energia com Dados Reais */}
         <View style={styles.rowCards}>
           {/* Card Agua */}
-          <View style={[styles.miniCard, styles.cardAgua]}>
+          <TouchableOpacity style={[styles.miniCard, styles.cardAgua]} activeOpacity={0.8} onPress={() => router.push('/agua')}>
             <View style={styles.miniCardTopo}>
               <Ionicons name="water" size={16} color="#38bdf8" />
               <Text style={styles.miniCardLabel}>Água hoje</Text>
             </View>
-            <Text style={styles.miniCardValor}>{aguaLitros} L</Text>
-            <Text style={styles.miniCardSub}>8.240 L este mês</Text>
-          </View>
+            <Text style={styles.miniCardValor}>{aguaHoje} L</Text>
+            <Text style={styles.miniCardSub}>{aguaMes} L este mês</Text>
+          </TouchableOpacity>
 
           {/* Card Energia */}
-          <View style={[styles.miniCard, styles.cardEnergia]}>
+          <TouchableOpacity style={[styles.miniCard, styles.cardEnergia]} activeOpacity={0.8} onPress={() => router.push('/energia')}>
             <View style={styles.miniCardTopo}>
               <Ionicons name="flash" size={16} color="#4ade80" />
               <Text style={styles.miniCardLabel}>Energia hoje</Text>
             </View>
-            <Text style={styles.miniCardValor}>{energiaKwh} kWh</Text>
-            <Text style={styles.miniCardSub}>218 kWh este mês</Text>
-          </View>
+            <Text style={styles.miniCardValor}>{energiaHoje} kWh</Text>
+            <Text style={styles.miniCardSub}>{energiaMes} kWh este mês</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Card Total Previsto */}
+        {/* Card Total Previsto (Calculo em Reais) */}
         <View style={styles.cardTotalPrevisto}>
           <View>
-            <Text style={styles.totalPrevistoLabel}>Total previsto</Text>
-            <Text style={styles.totalPrevistoValor}>R$ 480,00</Text>
+            <Text style={styles.totalPrevistoLabel}>Total previsto da conta</Text>
+            <Text style={styles.totalPrevistoValor}>R$ {totalPrevisto.replace('.', ',')}</Text>
             <View style={styles.linhaVariacao}>
-              <Ionicons name="trending-up" size={14} color="#22c55e" />
-              <Text style={styles.totalPrevistoSub}> 12% em relação ao mês anterior</Text>
+              <Ionicons name="calculator-outline" size={14} color="#22c55e" />
+              <Text style={styles.totalPrevistoSub}> Baseado na tarifa de consumo atual</Text>
             </View>
           </View>
           <View style={styles.circuloCifrao}>
@@ -88,64 +134,88 @@ export default function HomeScreen() {
         </View>
 
         {/* Card Situacao Geral */}
-        <TouchableOpacity style={styles.cardSituacao} activeOpacity={0.8}>
+        <View style={[styles.cardSituacao, (possivelVazamento || consumoElevado) && styles.cardSituacaoAlerta]}>
           <View style={styles.situacaoEsquerda}>
-            <View style={styles.checkIconBox}>
-              <Ionicons name="checkmark" size={18} color="#07131b" />
+            <View style={[styles.checkIconBox, (possivelVazamento || consumoElevado) && styles.checkIconBoxAlerta]}>
+              <Ionicons
+                name={possivelVazamento || consumoElevado ? "alert" : "checkmark"}
+                size={18}
+                color={possivelVazamento || consumoElevado ? "#ffffff" : "#07131b"}
+              />
             </View>
             <View>
-              <Text style={styles.situacaoLabel}>Situação geral</Text>
-              <Text style={styles.situacaoStatus}>Consumo dentro do esperado</Text>
+              <Text style={styles.situacaoLabel}>Situação do sistema</Text>
+              <Text style={styles.situacaoStatus}>
+                {possivelVazamento
+                  ? "Atenção: Vazão contínua detectada"
+                  : consumoElevado
+                  ? "Alerta: Potência acima da média"
+                  : "Consumo dentro do esperado"}
+              </Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#86efac" />
-        </TouchableOpacity>
+        </View>
 
         {/* Sessao Alertas Ativos */}
         <View style={styles.secaoHeader}>
-          <Text style={styles.secaoTitulo}>Alertas ativos</Text>
-          <TouchableOpacity>
+          <Text style={styles.secaoTitulo}>Alertas em tempo real</Text>
+          <TouchableOpacity onPress={() => router.push('/alertas')}>
             <Text style={styles.secaoLink}>Ver todos</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Card Alerta de Vazamento */}
-        <TouchableOpacity style={styles.cardAlerta} activeOpacity={0.8}>
-          <View style={styles.alertaIconeBox}>
-            <Ionicons name="warning" size={20} color="#f87171" />
+        {/* Card Dinâmico de Alerta */}
+        {possivelVazamento ? (
+          <TouchableOpacity style={styles.cardAlertaCritico} activeOpacity={0.8} onPress={() => router.push('/alertas')}>
+            <View style={styles.alertaIconeBox}>
+              <Ionicons name="warning" size={20} color="#f87171" />
+            </View>
+            <View style={styles.alertaConteudo}>
+              <Text style={styles.alertaTitulo}>Possível vazamento ativo</Text>
+              <Text style={styles.alertaSub}>Vazão de {vazaoAtual} L/min identificada pelo sensor YF-S201</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#f87171" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.cardSemAlerta}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#22c55e" />
+            <Text style={styles.textoSemAlerta}>Nenhum vazamento ou pico detectado no momento.</Text>
           </View>
-          <View style={styles.alertaConteudo}>
-            <Text style={styles.alertaTitulo}>Possível vazamento</Text>
-            <Text style={styles.alertaSub}>Banheiro • Hoje, 08:30</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#f87171" />
-        </TouchableOpacity>
+        )}
 
-        {/* Card Medição Instantânea em Tempo Real */}
+        {/* Card Medição Instantânea em Tempo Real (Direto do ESP8266) */}
         <View style={styles.cardTempoReal}>
           <View style={styles.tempoRealHeader}>
             <View style={styles.linhaCentral}>
               <Ionicons name="hardware-chip-outline" size={16} color="#64748b" />
-              <Text style={styles.tempoRealTitulo}>CENTRAL HOMEWISE</Text>
+              <Text style={styles.tempoRealTitulo}>CENTRAL ESP8266</Text>
             </View>
-            <View style={styles.badgeLive}>
-              <View style={styles.pontoLive} />
-              <Text style={styles.badgeLiveTexto}>CONECTADA</Text>
+            <View style={[styles.badgeLive, !leitura && styles.badgeOffline]}>
+              <View style={[styles.pontoLive, !leitura && styles.pontoOffline]} />
+              <Text style={[styles.badgeLiveTexto, !leitura && styles.badgeOfflineTexto]}>
+                {leitura ? "AO VIVO" : "AGUARDANDO ESP"}
+              </Text>
             </View>
           </View>
+
           <View style={styles.tempoRealValores}>
             <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Vazão</Text>
-              <Text style={styles.medicaoValor}>{leitura ? leitura.vazao_l_min.toFixed(1) : '0.0'} <Text style={styles.medicaoUnid}>L/min</Text></Text>
+              <Text style={styles.medicaoLabel}>Vazão Atual</Text>
+              <Text style={styles.medicaoValor}>{vazaoAtual} <Text style={styles.medicaoUnid}>L/min</Text></Text>
             </View>
             <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Potência</Text>
-              <Text style={styles.medicaoValor}>{potenciaW} <Text style={styles.medicaoUnid}>W</Text></Text>
+              <Text style={styles.medicaoLabel}>Potência Ativa</Text>
+              <Text style={styles.medicaoValor}>{potenciaAtual} <Text style={styles.medicaoUnid}>W</Text></Text>
             </View>
             <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Tensão</Text>
-              <Text style={styles.medicaoValor}>{leitura ? leitura.tensao_v.toFixed(0) : '127'} <Text style={styles.medicaoUnid}>V</Text></Text>
+              <Text style={styles.medicaoLabel}>Tensão AC</Text>
+              <Text style={styles.medicaoValor}>{tensaoAtual} <Text style={styles.medicaoUnid}>V</Text></Text>
             </View>
+          </View>
+
+          <View style={styles.rodapeCentral}>
+            <Text style={styles.textoRodapeCentral}>Dispositivo: {leitura?.dispositivo_id || "central_homewise_01"}</Text>
+            <Text style={styles.textoRodapeCentral}>Última atualização: {dataHoraUltimaLeitura}</Text>
           </View>
         </View>
 
@@ -197,7 +267,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: '#1e3a4b',
+    position: 'relative'
+  },
+  badgeNotif: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444'
   },
   rowCards: {
     flexDirection: 'row',
@@ -263,7 +343,8 @@ const styles = StyleSheet.create({
   },
   linhaVariacao: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: 4
   },
   totalPrevistoSub: {
     color: '#22c55e',
@@ -289,6 +370,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#14532d'
   },
+  cardSituacaoAlerta: {
+    backgroundColor: '#2b1b0d',
+    borderColor: '#854d0e'
+  },
   situacaoEsquerda: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -301,6 +386,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#22c55e',
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  checkIconBoxAlerta: {
+    backgroundColor: '#f59e0b'
   },
   situacaoLabel: {
     color: '#86efac',
@@ -327,7 +415,7 @@ const styles = StyleSheet.create({
     color: '#7e9aa8',
     fontSize: 13
   },
-  cardAlerta: {
+  cardAlertaCritico: {
     backgroundColor: '#261414',
     borderRadius: 14,
     padding: 14,
@@ -336,6 +424,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#7f1d1d'
+  },
+  cardSemAlerta: {
+    backgroundColor: '#0a1d27',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#133547'
+  },
+  textoSemAlerta: {
+    color: '#94a3b8',
+    fontSize: 13
   },
   alertaIconeBox: {
     width: 38,
@@ -392,16 +495,25 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6
   },
+  badgeOffline: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)'
+  },
   pontoLive: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#22c55e'
   },
+  pontoOffline: {
+    backgroundColor: '#ef4444'
+  },
   badgeLiveTexto: {
     color: '#22c55e',
     fontSize: 10,
     fontWeight: 'bold'
+  },
+  badgeOfflineTexto: {
+    color: '#ef4444'
   },
   tempoRealValores: {
     flexDirection: 'row',
@@ -424,5 +536,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
     fontWeight: 'normal'
+  },
+  rodapeCentral: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#132838',
+    paddingTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  textoRodapeCentral: {
+    color: '#64748b',
+    fontSize: 11
   }
 });
