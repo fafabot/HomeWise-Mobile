@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
 
 export function usePanelMotion() {
-  const offset = useRef(new Animated.Value(70)).current;
+  const offset = useRef(new Animated.Value(240)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
   const reducedMotion = useRef(false);
   useEffect(() => {
     let active = true;
@@ -13,8 +14,17 @@ export function usePanelMotion() {
       if (value) offset.setValue(0);
       else Animated.spring(offset, { toValue: 0, damping: 19, stiffness: 150, mass: 0.9, useNativeDriver: true }).start();
     }).catch(() => { if (active) offset.setValue(0); });
-    return () => { active = false; subscription.remove(); offset.stopAnimation(); };
-  }, [offset]);
+    return () => { active = false; subscription.remove(); offset.stopAnimation(); buttonScale.stopAnimation(); };
+  }, [offset, buttonScale]);
+
+  const buttonDown = () => {
+    if (reducedMotion.current) return;
+    Animated.timing(buttonScale, { toValue: 0.96, duration: 100, useNativeDriver: true }).start();
+  };
+  const buttonUp = () => {
+    if (reducedMotion.current) return;
+    Animated.spring(buttonScale, { toValue: 1, damping: 12, stiffness: 220, mass: 0.65, useNativeDriver: true }).start();
+  };
 
   const press = () => new Promise<void>((resolve) => {
     if (reducedMotion.current) return resolve();
@@ -25,7 +35,11 @@ export function usePanelMotion() {
   });
   const close = (onClosed: () => void) => {
     if (reducedMotion.current) return onClosed();
-    Animated.timing(offset, { toValue: 110, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onClosed(); });
+    Animated.timing(offset, { toValue: 240, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onClosed(); });
   };
-  return { style: { transform: [{ translateY: offset }], opacity: offset.interpolate({ inputRange: [0, 110], outputRange: [1, 0], extrapolate: 'clamp' }) }, press, close };
+  return {
+    style: { transform: [{ translateY: offset }], opacity: offset.interpolate({ inputRange: [0, 240], outputRange: [1, 0], extrapolate: 'clamp' }) },
+    buttonStyle: { transform: [{ scale: buttonScale }] },
+    buttonDown, buttonUp, press, close,
+  };
 }
