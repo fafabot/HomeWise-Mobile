@@ -1,16 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/services/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { authErrorMessage } from '@/services/authErrors';
 
 export default function PerfilScreen() {
+  const { user } = useAuth();
+  const [saindo, setSaindo] = useState(false);
+  const nome = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+  const iniciais = nome.split(/\s+/).map((parte) => parte[0]).slice(0, 2).join('').toUpperCase();
+  async function sair() {
+    setSaindo(true);
+    try { await signOut(auth); }
+    catch (error) { Alert.alert('Não foi possível sair', authErrorMessage(error)); }
+    finally { setSaindo(false); }
+  }
   const opcoes: {
     id: number;
     titulo: string;
@@ -41,10 +56,10 @@ export default function PerfilScreen() {
         {/* Card do Usuario */}
         <View style={styles.cardPerfil}>
           <View style={styles.avatarGrande}>
-            <Text style={styles.avatarTexto}>ML</Text>
+            <Text style={styles.avatarTexto}>{iniciais}</Text>
           </View>
-          <Text style={styles.nomeUsuario}>Matheus Luiz</Text>
-          <Text style={styles.emailUsuario}>matheus.luiz@gmail.com</Text>
+          <Text style={styles.nomeUsuario}>{nome}</Text>
+          <Text style={styles.emailUsuario}>{user?.email}</Text>
 
           <TouchableOpacity style={styles.botaoEditarPerfil} activeOpacity={0.8}>
             <Text style={styles.textoEditarPerfil}>Editar Perfil</Text>
@@ -68,9 +83,9 @@ export default function PerfilScreen() {
         </View>
 
         {/* Botao Sair da Conta */}
-        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} disabled={saindo} onPress={() => void sair()}>
           <Ionicons name="log-out-outline" size={18} color="#f87171" style={{ marginRight: 8 }} />
-          <Text style={styles.textoSair}>Sair da conta</Text>
+          <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
         </TouchableOpacity>
 
       </ScrollView>

@@ -1,5 +1,9 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+// Metro resolves Firebase's native export; its default TypeScript declarations omit this helper.
+// @ts-expect-error getReactNativePersistence is exported by the React Native Firebase entry.
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -14,7 +18,16 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getAuth(app);
+export const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : (() => {
+      try {
+        return initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+      } catch (error) {
+        if ((error as { code?: string }).code === 'auth/already-initialized') return getAuth(app);
+        throw error;
+      }
+    })();
 export const db = getFirestore(app);
 export default app;
 
