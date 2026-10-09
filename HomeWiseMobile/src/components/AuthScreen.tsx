@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,10 +8,12 @@ import { auth } from '@/services/firebase';
 import { authErrorMessage } from '@/services/authErrors';
 import HomeWiseLogo from '@/components/HomeWiseLogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePanelMotion } from '@/hooks/use-panel-motion';
 
 export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
   const registering = mode === 'cadastro';
   const { selectEntry } = useAuth();
+  const panel = usePanelMotion();
   const [focused, setFocused] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,14 +27,21 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 
   async function submit() {
     if (submitting.current) return;
-    setError('');
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return setError('Informe um e-mail válido.');
-    if (!password) return setError('Informe sua senha.');
-    if (registering && password.length < 6) return setError('A senha deve ter pelo menos 6 caracteres.');
-    if (registering && password !== confirmation) return setError('As senhas não coincidem.');
     submitting.current = true;
     setBusy(true);
+    await panel.press();
+    setError('');
+    const normalizedEmail = email.trim().toLowerCase();
+    const validationError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? 'Informe um e-mail válido.'
+      : !password ? 'Informe sua senha.'
+      : registering && password.length < 6 ? 'A senha deve ter pelo menos 6 caracteres.'
+      : registering && password !== confirmation ? 'As senhas não coincidem.' : '';
+    if (validationError) {
+      setError(validationError);
+      submitting.current = false;
+      setBusy(false);
+      return;
+    }
     try {
       if (registering) await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       else await signInWithEmailAndPassword(auth, normalizedEmail, password);
@@ -46,17 +55,19 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#eef2f0" />
+      <StatusBar barStyle="light-content" backgroundColor="#0c1717" />
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
             <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} resizeMode="cover">
               <View style={styles.shade} />
-              <TouchableOpacity disabled={busy} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => selectEntry(null)}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>
+              <TouchableOpacity disabled={busy} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => panel.close(() => selectEntry(null))}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>
               <HomeWiseLogo compact />
               <Text style={styles.brand}>HomeWise</Text>
             </ImageBackground>
-            <View style={styles.form}>
+            <Animated.View style={[styles.form, panel.style]}>
+            <View style={styles.formContent}>
+            <View style={styles.handle} />
             <Text style={styles.eyebrow}>{registering ? 'COMECE UMA NOVA HISTÓRIA' : 'SUA CASA ESTÁ ESPERANDO'}</Text>
             <Text style={styles.title}>{registering ? 'Crie sua conta' : 'Bem-vindo de volta'}</Text>
             <Text style={styles.subtitle}>{registering ? 'Cadastre-se para acompanhar sua casa.' : 'Entre com seu e-mail e senha para continuar.'}</Text>
@@ -86,6 +97,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             </>}
             <View style={styles.security}><Ionicons name="shield-checkmark-outline" size={14} color="#72867a" /><Text style={styles.securityText}>Seu acesso protegido, sua casa conectada.</Text></View>
             </View>
+            </Animated.View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -94,31 +106,33 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#eef2f0' },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: 16 },
-  card: { width: '100%', maxWidth: 430, alignSelf: 'center', borderRadius: 30, overflow: 'hidden', backgroundColor: '#fff', boxShadow: '0 12px 35px rgba(27, 45, 38, 0.08)' },
-  hero: { height: 190, justifyContent: 'center', alignItems: 'center', paddingBottom: 16 },
+  container: { flex: 1, backgroundColor: '#0c1717' },
+  scroll: { flexGrow: 1 },
+  card: { flexGrow: 1, width: '100%', backgroundColor: '#0c1717' },
+  hero: { height: 230, justifyContent: 'center', alignItems: 'center', paddingBottom: 16 },
   shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(13, 27, 23, 0.35)' },
   brand: { color: '#fff', fontSize: 21, fontWeight: '600', marginTop: 5 },
-  form: { padding: 26, paddingTop: 28, backgroundColor: '#fff', marginTop: -25, borderTopLeftRadius: 32, borderTopRightRadius: 32 },
+  form: { flexGrow: 1, padding: 28, paddingTop: 16, backgroundColor: '#122222', marginTop: -28, borderTopLeftRadius: 34, borderTopRightRadius: 34 },
+  formContent: { width: '100%', maxWidth: 460, alignSelf: 'center' },
+  handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#45605b', alignSelf: 'center', marginBottom: 22 },
   back: { position: 'absolute', left: 16, top: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  eyebrow: { color: '#568375', fontSize: 9, fontWeight: '700', letterSpacing: 1.8, textAlign: 'center' },
-  title: { color: '#232a27', fontSize: 27, fontWeight: '800', letterSpacing: -0.8, marginTop: 10, textAlign: 'center' },
-  subtitle: { color: '#7b8680', lineHeight: 21, marginTop: 9, marginBottom: 8, textAlign: 'center', fontSize: 13 },
-  label: { color: '#42554a', fontSize: 12, fontWeight: '600', marginBottom: 8, marginTop: 18 },
-  input: { color: '#263b2f', backgroundColor: '#f5f7f5', borderWidth: 1, borderColor: '#e3e9e4', borderRadius: 14, padding: 15, fontSize: 15, minHeight: 54 },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f7f5', borderWidth: 1, borderColor: '#e3e9e4', borderRadius: 14 },
+  eyebrow: { color: '#84ceb2', fontSize: 9, fontWeight: '700', letterSpacing: 1.8, textAlign: 'center' },
+  title: { color: '#f0f7f4', fontSize: 27, fontWeight: '800', letterSpacing: -0.8, marginTop: 10, textAlign: 'center' },
+  subtitle: { color: '#a0b6ac', lineHeight: 21, marginTop: 9, marginBottom: 8, textAlign: 'center', fontSize: 13 },
+  label: { color: '#c0d3cb', fontSize: 12, fontWeight: '600', marginBottom: 8, marginTop: 18 },
+  input: { color: '#f0f7f4', backgroundColor: '#1b302d', borderWidth: 1, borderColor: '#2b443d', borderRadius: 14, padding: 15, fontSize: 15, minHeight: 54 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1b302d', borderWidth: 1, borderColor: '#2b443d', borderRadius: 14 },
   fieldIcon: { marginLeft: 15 },
-  fieldInput: { flex: 1, minWidth: 0, color: '#263b2f', paddingHorizontal: 12, paddingVertical: 15, fontSize: 15, minHeight: 54 },
-  focused: { borderColor: '#568375', backgroundColor: '#f0f6f2' },
+  fieldInput: { flex: 1, minWidth: 0, color: '#f0f7f4', paddingHorizontal: 12, paddingVertical: 15, fontSize: 15, minHeight: 54 },
+  focused: { borderColor: '#77c6ac', backgroundColor: '#203831' },
   eye: { width: 46, minHeight: 50, justifyContent: 'center', alignItems: 'center' },
-  error: { color: '#b94343', backgroundColor: '#fff3f1', padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 21, marginTop: 16 },
-  button: { backgroundColor: '#222b27', borderRadius: 28, minHeight: 54, flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  error: { color: '#ffb0a3', backgroundColor: '#3a2526', padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 21, marginTop: 16 },
+  button: { backgroundColor: '#33765f', borderRadius: 28, minHeight: 54, flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   disabled: { opacity: 0.6 },
-  forgot: { color: '#568375', fontSize: 12, textAlign: 'right', paddingVertical: 12, fontWeight: '500' },
+  forgot: { color: '#84ceb2', fontSize: 12, textAlign: 'right', paddingVertical: 12, fontWeight: '500' },
   footer: { color: '#8b9690', fontSize: 12, textAlign: 'center', marginTop: 22 },
-  link: { color: '#426b58', fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 10, lineHeight: 22 },
+  link: { color: '#8dd8bb', fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 10, lineHeight: 22 },
   security: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 16 },
   securityText: { color: '#8b9690', fontSize: 10 },
 });

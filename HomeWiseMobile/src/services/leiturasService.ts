@@ -2,7 +2,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   limit,
   onSnapshot
 } from "firebase/firestore";
@@ -99,7 +98,7 @@ export function observarHistorico(
       });
 
       // Ordena em ordem cronologica (antigo para recente)
-      lista.sort((a, b) => a.criado_em.getTime() - b.criado_em.getTime());
+      lista.sort((a, b) => (a.criado_em?.getTime() ?? 0) - (b.criado_em?.getTime() ?? 0));
       callback(lista);
     },
     (error) => {

@@ -10,33 +10,71 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/services/firebase';
+import { useRouter } from 'expo-router';
+import { deslogarUsuario } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
 import { authErrorMessage } from '@/services/authErrors';
 
 export default function PerfilScreen() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user: usuario } = useAuth();
   const [saindo, setSaindo] = useState(false);
-  const nome = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
-  const iniciais = nome.split(/\s+/).map((parte) => parte[0]).slice(0, 2).join('').toUpperCase();
-  async function sair() {
-    setSaindo(true);
-    try { await signOut(auth); }
-    catch (error) { Alert.alert('Não foi possível sair', authErrorMessage(error)); }
-    finally { setSaindo(false); }
+  const nomeExibicao = usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
+  const emailExibicao = usuario?.email || '';
+  const iniciais = nomeExibicao.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+  async function handleSair() {
+    Alert.alert(
+      'Sair da conta',
+      'Deseja realmente sair da sua conta HomeWise?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            setSaindo(true);
+            try { await deslogarUsuario(); }
+            catch (error) { Alert.alert('Não foi possível sair', authErrorMessage(error)); }
+            finally { setSaindo(false); }
+          }
+        }
+      ]
+    );
   }
-  const opcoes: {
-    id: number;
-    titulo: string;
-    icone: keyof typeof Ionicons.glyphMap;
-    badge?: string;
-  }[] = [
-    { id: 1, titulo: 'Dados Pessoais', icone: 'person-outline' },
-    { id: 2, titulo: 'Minha residência', icone: 'home-outline' },
-    { id: 3, titulo: 'Plano e assinatura', icone: 'card-outline', badge: 'Plus' },
-    { id: 4, titulo: 'Alterar senha', icone: 'lock-closed-outline' },
-    { id: 5, titulo: 'Configurações de alerta', icone: 'notifications-outline' }
+
+  const opcoes = [
+    {
+      id: 1,
+      titulo: 'Editar Perfil',
+      icone: 'person-outline' as const,
+      acao: () => router.push('/editar-perfil')
+    },
+    {
+      id: 2,
+      titulo: 'Alterar Senha',
+      icone: 'lock-closed-outline' as const,
+      acao: () => router.push('/alterar-senha')
+    },
+    {
+      id: 3,
+      titulo: 'Minha residência',
+      icone: 'home-outline' as const,
+      acao: () => router.push('/editar-perfil')
+    },
+    {
+      id: 4,
+      titulo: 'Plano e assinatura',
+      icone: 'card-outline' as const,
+      badge: 'Plus',
+      acao: () => Alert.alert('Plano HomeWise', 'Você está utilizando o plano Plus com monitoramento em tempo real!')
+    },
+    {
+      id: 5,
+      titulo: 'Configurações de alerta',
+      icone: 'notifications-outline' as const,
+      acao: () => router.push('/alertas')
+    }
   ];
 
   return (
@@ -46,30 +84,40 @@ export default function PerfilScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7}>
-            <Ionicons name="menu-outline" size={20} color="#ffffff" />
+          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Perfil</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Card do Usuario */}
+        {/* Card do Usuario Conectado ao Firebase */}
         <View style={styles.cardPerfil}>
           <View style={styles.avatarGrande}>
             <Text style={styles.avatarTexto}>{iniciais}</Text>
           </View>
-          <Text style={styles.nomeUsuario}>{nome}</Text>
-          <Text style={styles.emailUsuario}>{user?.email}</Text>
+          <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
+          <Text style={styles.emailUsuario}>{emailExibicao}</Text>
 
-          <TouchableOpacity style={styles.botaoEditarPerfil} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.botaoEditarPerfil}
+            activeOpacity={0.8}
+            onPress={() => router.push('/editar-perfil')}
+          >
+            <Ionicons name="create-outline" size={16} color="#22b7d4" style={{ marginRight: 6 }} />
             <Text style={styles.textoEditarPerfil}>Editar Perfil</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Lista de Opcoes do Perfil */}
+        {/* Lista de Opcoes com Navegacao Funcional */}
         <View style={styles.menuContainer}>
           {opcoes.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.itemMenu} activeOpacity={0.7}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.itemMenu}
+              activeOpacity={0.7}
+              onPress={item.acao}
+            >
               <View style={styles.itemMenuEsquerda}>
                 <Ionicons name={item.icone} size={20} color="#38bdf8" />
                 <Text style={styles.itemMenuTitulo}>{item.titulo}</Text>
@@ -82,8 +130,8 @@ export default function PerfilScreen() {
           ))}
         </View>
 
-        {/* Botao Sair da Conta */}
-        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} disabled={saindo} onPress={() => void sair()}>
+        {/* Botao Sair da Conta com Firebase signOut */}
+        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} disabled={saindo} onPress={handleSair}>
           <Ionicons name="log-out-outline" size={18} color="#f87171" style={{ marginRight: 8 }} />
           <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
         </TouchableOpacity>
@@ -166,7 +214,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: '#1e3a4b',
+    flexDirection: 'row',
+    alignItems: 'center'
   },
   textoEditarPerfil: {
     color: '#22b7d4',

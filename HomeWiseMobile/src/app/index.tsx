@@ -6,8 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Image,
-  ActivityIndicator
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,13 +21,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
-  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
     // Escuta a leitura mais recente em tempo real do ESP8266
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
-      setCarregando(false);
     });
 
     // Escuta o historico para calculo de acumulados
