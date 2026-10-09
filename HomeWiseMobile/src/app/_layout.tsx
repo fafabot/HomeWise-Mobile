@@ -8,7 +8,7 @@ export default function RootLayout() {
 }
 
 function Navigation() {
-  const { user, loading } = useAuth();
+  const { user, loading, entry } = useAuth();
   if (loading) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator color="#22b7d4" size="large" /></View>;
   return (
     <View style={styles.container}>
@@ -19,13 +19,15 @@ function Navigation() {
           animation: 'fade'
         }}
       >
-        <Stack.Protected guard={!user}>
+        <Stack.Protected guard={!entry}>
           <Stack.Screen name="boas-vindas" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="cadastro" />
+        </Stack.Protected>
+        <Stack.Protected guard={!user && !!entry}>
+          <Stack.Screen name={entry === 'cadastro' ? 'cadastro' : 'login'} />
+          <Stack.Screen name={entry === 'cadastro' ? 'login' : 'cadastro'} />
           <Stack.Screen name="recuperar-senha" />
         </Stack.Protected>
-        <Stack.Protected guard={!!user}>
+        <Stack.Protected guard={!!user && !!entry}>
           <Stack.Screen name="index" />
           <Stack.Screen name="agua" />
           <Stack.Screen name="energia" />
@@ -33,7 +35,7 @@ function Navigation() {
           <Stack.Screen name="perfil" />
         </Stack.Protected>
       </Stack>
-      {user && <HomeWiseTabBar />}
+      {user && entry && <HomeWiseTabBar />}
     </View>
   );
 }

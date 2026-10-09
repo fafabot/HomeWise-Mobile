@@ -2,7 +2,7 @@
 
 O app usa Firebase Authentication do projeto `homewise-65bb1`. No console do Firebase, abra **Authentication → Sign-in method → Email/Password** e habilite o provedor de e-mail e senha.
 
-Execute `npm install` e `npm start` nesta pasta para abrir o app. Sem sessão, o app mostra as boas-vindas com acesso ao login e ao cadastro. O cadastro pede e-mail, senha com pelo menos seis caracteres e confirmação. Uma conta criada entra automaticamente. Senhas são verificadas pelo Firebase, sem armazenamento manual no app.
+Execute `npm install` e `npm start` nesta pasta para abrir o app. Ao abrir o app, as boas-vindas aparecem antes das outras telas. Sem sessão, os botões levam ao login e ao cadastro; com uma sessão salva, **Continuar** abre o painel. O cadastro pede e-mail, senha com pelo menos seis caracteres e confirmação. Uma conta criada entra automaticamente. Senhas são verificadas pelo Firebase, sem armazenamento manual no app.
 
 As telas usam a logo original em `assets/images/logo homewise.png`. No login, **Esqueceu sua senha?** abre a recuperação por e-mail. O Firebase envia um link para sua página de redefinição de senha; o app mostra a confirmação do pedido. Não é necessário informar a senha antiga.
 
