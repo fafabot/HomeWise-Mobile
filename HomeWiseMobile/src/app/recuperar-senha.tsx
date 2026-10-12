@@ -7,8 +7,10 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeWiseLogo from '@/components/HomeWiseLogo';
 import { auth } from '@/services/firebase';
 import { authErrorMessage } from '@/services/authErrors';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function RecoverPasswordScreen() {
+  const { selectEntry } = useAuth();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -44,14 +46,14 @@ export default function RecoverPasswordScreen() {
             {sent ? <>
               <Ionicons name="mail-open-outline" size={40} color="#7cbfff" style={styles.mail} />
               <Text style={styles.subtitle} accessibilityLiveRegion="polite">Se houver uma conta com esse e-mail, você receberá um link para criar uma nova senha. Confira também a caixa de spam.</Text>
-              <Link href="/login" replace style={styles.button}>Voltar para o login</Link>
+              <Link href="/login" replace style={styles.button} onPress={() => selectEntry('login')}>Voltar para o login</Link>
             </> : <>
               <Text style={styles.subtitle}>Informe o e-mail da sua conta para receber um link de recuperação.</Text>
               <Text style={styles.label}>E-mail</Text>
               <TextInput style={styles.input} accessibilityLabel="E-mail da conta" placeholder="voce@exemplo.com" placeholderTextColor="#9aa7bb" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" editable={!busy} returnKeyType="send" onSubmitEditing={() => void submit()} />
               {!!error && <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">{error}</Text>}
               <TouchableOpacity accessibilityRole="button" disabled={busy} style={[styles.button, busy && styles.disabled]} onPress={() => void submit()}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Enviar link</Text>}</TouchableOpacity>
-              {!busy && <Link href="/login" replace style={styles.link}>Voltar para o login</Link>}
+              {!busy && <Link href="/login" replace style={styles.link} onPress={() => selectEntry('login')}>Voltar para o login</Link>}
             </>}
           </View>
         </ScrollView>

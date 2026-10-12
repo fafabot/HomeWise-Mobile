@@ -17,9 +17,9 @@ import { authErrorMessage } from '@/services/authErrors';
 
 export default function PerfilScreen() {
   const router = useRouter();
-  const { user: usuario } = useAuth();
+  const { user: usuario, perfil, dispositivoId } = useAuth();
   const [saindo, setSaindo] = useState(false);
-  const nomeExibicao = usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
+  const nomeExibicao = perfil?.nome || usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
   const emailExibicao = usuario?.email || '';
   const iniciais = nomeExibicao.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -44,6 +44,13 @@ export default function PerfilScreen() {
   }
 
   const opcoes = [
+    {
+      id: 0,
+      titulo: 'Central Vinculada',
+      icone: 'hardware-chip-outline' as const,
+      badge: dispositivoId,
+      acao: () => router.push('/editar-perfil')
+    },
     {
       id: 1,
       titulo: 'Editar Perfil',
@@ -98,6 +105,12 @@ export default function PerfilScreen() {
           </View>
           <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
           <Text style={styles.emailUsuario}>{emailExibicao}</Text>
+
+          {/* Badge da Central Conectada */}
+          <View style={styles.badgeCentral}>
+            <Ionicons name="hardware-chip" size={13} color="#38bdf8" />
+            <Text style={styles.badgeCentralTexto}>Central: {dispositivoId}</Text>
+          </View>
 
           <TouchableOpacity
             style={styles.botaoEditarPerfil}
@@ -178,19 +191,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#133547',
-    marginBottom: 24
+    borderColor: '#1e3a4b'
   },
   avatarGrande: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#1b3b4f',
+    backgroundColor: '#0ea5e9',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#22b7d4',
-    marginBottom: 14
+    marginBottom: 12
   },
   avatarTexto: {
     color: '#ffffff',
@@ -200,23 +210,40 @@ const styles = StyleSheet.create({
   nomeUsuario: {
     color: '#ffffff',
     fontSize: 20,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    marginBottom: 4
   },
   emailUsuario: {
     color: '#64748b',
-    fontSize: 13,
-    marginTop: 4,
+    fontSize: 14,
+    marginBottom: 10
+  },
+  badgeCentral: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#071824',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#183950',
     marginBottom: 16
   },
+  badgeCentralTexto: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '600'
+  },
   botaoEditarPerfil: {
-    backgroundColor: '#0e222e',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1e3a4b',
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    backgroundColor: '#0f2b3c',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#164e63'
   },
   textoEditarPerfil: {
     color: '#22b7d4',
@@ -225,10 +252,11 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     backgroundColor: '#0b1d28',
-    borderRadius: 16,
+    borderRadius: 20,
+    marginTop: 20,
     borderWidth: 1,
-    borderColor: '#133547',
-    marginBottom: 20
+    borderColor: '#1e3a4b',
+    overflow: 'hidden'
   },
   itemMenu: {
     flexDirection: 'row',
@@ -237,7 +265,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#132838'
+    borderBottomColor: '#122634'
   },
   itemMenuEsquerda: {
     flexDirection: 'row',
@@ -245,7 +273,7 @@ const styles = StyleSheet.create({
     gap: 12
   },
   itemMenuTitulo: {
-    color: '#e2e8f0',
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '500'
   },
@@ -261,21 +289,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6
+    borderRadius: 10
   },
   botaoSair: {
-    backgroundColor: '#261414',
-    borderRadius: 12,
-    paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#1a1419',
+    borderRadius: 16,
+    paddingVertical: 14,
+    marginTop: 24,
     borderWidth: 1,
-    borderColor: '#7f1d1d'
+    borderColor: '#451a1a'
   },
   textoSair: {
     color: '#f87171',
     fontSize: 15,
-    fontWeight: 'bold'
+    fontWeight: '600'
   }
 });

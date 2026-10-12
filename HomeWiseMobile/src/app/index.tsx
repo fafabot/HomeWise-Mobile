@@ -13,31 +13,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 // Tarifas medias para calculo financeiro (R$ por unidade)
 const TARIFA_AGUA_POR_LITRO = 0.0085; // ~R$ 8,50 por m³ (1000L)
 const TARIFA_ENERGIA_KWH = 0.85;      // ~R$ 0,85 por kWh
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user, perfil, dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
 
   useEffect(() => {
-    // Escuta a leitura mais recente em tempo real do ESP8266
+    // Escuta a leitura mais recente em tempo real do ESP8266 para o dispositivo deste usuario
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
-    });
+    }, dispositivoId);
 
     // Escuta o historico para calculo de acumulados
     const unsubHistorico = observarHistorico((dados) => {
       setHistorico(dados);
-    });
+    }, 30, dispositivoId);
 
     return () => {
       unsubLeitura();
       unsubHistorico();
     };
-  }, []);
+  }, [dispositivoId]);
 
   // Calculos dinamicos a partir das leituras reais do ESP
   const aguaHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
@@ -82,8 +85,8 @@ export default function HomeScreen() {
               resizeMode="contain"
             />
             <View>
-              <Text style={styles.saudacao}>Olá, Matheus!</Text>
-              <Text style={styles.subSaudacao}>Resumo da sua residência</Text>
+              <Text style={styles.saudacao}>Olá, {perfil?.nome || user?.displayName || 'Morador'}!</Text>
+              <Text style={styles.subSaudacao}>Central: {dispositivoId}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
@@ -540,7 +543,10 @@ const styles = StyleSheet.create({
     borderTopColor: '#132838',
     paddingTop: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6
   },
   textoRodapeCentral: {
     color: '#64748b',

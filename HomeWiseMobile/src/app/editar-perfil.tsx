@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,18 +13,30 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { obterUsuarioAtual, atualizarPerfilUsuario } from '@/services/authService';
+import { atualizarPerfilUsuario } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EditarPerfilScreen() {
   const router = useRouter();
-  const usuario = obterUsuarioAtual();
+  const { user: usuario, perfil } = useAuth();
 
-  const [nome, setNome] = useState(usuario?.displayName || '');
+  const [nome, setNome] = useState(perfil?.nome || usuario?.displayName || '');
   const [email] = useState(usuario?.email || '');
-  const [telefone, setTelefone] = useState('+55 (11) 99999-9999');
-  const [residencia, setResidencia] = useState('Rua Belforte 291 Santo André-SP');
-  const [cep, setCep] = useState('04787-140');
+  const [dispositivoId, setDispositivoId] = useState(perfil?.dispositivo_id || 'central_homewise_01');
+  const [telefone, setTelefone] = useState(perfil?.telefone || '');
+  const [residencia, setResidencia] = useState(perfil?.residencia || '');
+  const [cep, setCep] = useState(perfil?.cep || '');
   const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (perfil) {
+      if (perfil.nome) setNome(perfil.nome);
+      if (perfil.dispositivo_id) setDispositivoId(perfil.dispositivo_id);
+      if (perfil.telefone) setTelefone(perfil.telefone);
+      if (perfil.residencia) setResidencia(perfil.residencia);
+      if (perfil.cep) setCep(perfil.cep);
+    }
+  }, [perfil]);
 
   async function handleSalvar() {
     if (!nome.trim()) {
@@ -32,12 +44,22 @@ export default function EditarPerfilScreen() {
       return;
     }
 
+    if (!dispositivoId.trim()) {
+      Alert.alert('Atenção', 'Informe o identificador da sua Central HomeWise.');
+      return;
+    }
+
     setSalvando(true);
-    const resultado = await atualizarPerfilUsuario(nome);
+    const resultado = await atualizarPerfilUsuario(nome, {
+      dispositivo_id: dispositivoId.trim(),
+      telefone: telefone.trim(),
+      residencia: residencia.trim(),
+      cep: cep.trim()
+    });
     setSalvando(false);
 
     if (resultado.sucesso) {
-      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
+      Alert.alert('Sucesso', 'Perfil e Central atualizados com sucesso!', [
         { text: 'OK', onPress: () => router.push('/perfil') }
       ]);
     } else {
@@ -59,20 +81,20 @@ export default function EditarPerfilScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Foto de Perfil com Botao de Editar */}
+        {/* Foto de Perfil */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatarGrande}>
             <Text style={styles.avatarTexto}>
-              {nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+              {nome ? nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'HW'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.botaoTrocarFoto} activeOpacity={0.8}>
-            <Ionicons name="camera-outline" size={16} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.nomeHeader}>{nome}</Text>
+          <View style={styles.botaoTrocarFoto}>
+            <Ionicons name="person" size={16} color="#ffffff" />
+          </View>
+          <Text style={styles.nomeHeader}>{nome || 'Morador'}</Text>
         </View>
 
-        {/* Formulario dos Dados Pessoais do Figma */}
+        {/* Formulario */}
         <View style={styles.formCard}>
           {/* Campo Nome */}
           <View style={styles.inputGrupo}>
@@ -89,7 +111,7 @@ export default function EditarPerfilScreen() {
             </View>
           </View>
 
-          {/* Campo E-mail (Desabilitado) */}
+          {/* Campo E-mail (Bloqueado) */}
           <View style={styles.inputGrupo}>
             <Text style={styles.label}>E-mail da Conta</Text>
             <View style={[styles.inputContainer, styles.inputBloqueado]}>
@@ -102,6 +124,25 @@ export default function EditarPerfilScreen() {
             </View>
           </View>
 
+          {/* Campo Codigo da Central */}
+          <View style={styles.inputGrupo}>
+            <Text style={styles.label}>Código da Central HomeWise</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                value={dispositivoId}
+                onChangeText={setDispositivoId}
+                placeholder="Ex: central_homewise_01"
+                placeholderTextColor="#64748b"
+                autoCapitalize="none"
+              />
+              <Ionicons name="hardware-chip-outline" size={16} color="#38bdf8" />
+            </View>
+            <Text style={styles.helperText}>
+              Este código vincula os sensores de água e energia da sua casa à sua conta.
+            </Text>
+          </View>
+
           {/* Campo Telefone */}
           <View style={styles.inputGrupo}>
             <Text style={styles.label}>Telefone</Text>
@@ -111,6 +152,7 @@ export default function EditarPerfilScreen() {
                 value={telefone}
                 onChangeText={setTelefone}
                 keyboardType="phone-pad"
+                placeholder="(11) 99999-9999"
                 placeholderTextColor="#64748b"
               />
               <Ionicons name="pencil" size={16} color="#0284c7" />
@@ -125,6 +167,7 @@ export default function EditarPerfilScreen() {
                 style={styles.input}
                 value={residencia}
                 onChangeText={setResidencia}
+                placeholder="Rua, número, bairro e cidade"
                 placeholderTextColor="#64748b"
               />
               <Ionicons name="pencil" size={16} color="#0284c7" />
@@ -140,6 +183,7 @@ export default function EditarPerfilScreen() {
                 value={cep}
                 onChangeText={setCep}
                 keyboardType="numeric"
+                placeholder="00000-000"
                 placeholderTextColor="#64748b"
               />
               <Ionicons name="pencil" size={16} color="#0284c7" />
@@ -148,7 +192,7 @@ export default function EditarPerfilScreen() {
 
           {/* Botao Salvar */}
           <TouchableOpacity
-            style={styles.botaoSalvar}
+            style={[styles.botaoSalvar, salvando && { opacity: 0.7 }]}
             activeOpacity={0.8}
             onPress={handleSalvar}
             disabled={salvando}
@@ -156,7 +200,10 @@ export default function EditarPerfilScreen() {
             {salvando ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.textoBotaoSalvar}>Salvar Alterações</Text>
+              <>
+                <Ionicons name="checkmark-circle-outline" size={20} color="#ffffff" />
+                <Text style={styles.botaoSalvarTexto}>Salvar Alterações</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -173,114 +220,121 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
     paddingBottom: 40
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20
+    justifyContent: 'space-between',
+    paddingVertical: 16
   },
   botaoVoltar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
+    backgroundColor: '#0c202d',
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: '#1e3a4f'
   },
   tituloHeader: {
-    color: '#ffffff',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: '700',
+    color: '#ffffff'
   },
   avatarContainer: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginVertical: 20,
     position: 'relative'
   },
   avatarGrande: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#1b3b4f',
-    justifyContent: 'center',
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    backgroundColor: '#0284c7',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#22b7d4'
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#38bdf8'
   },
   avatarTexto: {
-    color: '#ffffff',
-    fontSize: 32,
-    fontWeight: 'bold'
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#ffffff'
   },
   botaoTrocarFoto: {
     position: 'absolute',
     bottom: 30,
     right: '38%',
-    backgroundColor: '#0284c7',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
+    backgroundColor: '#0ea5e9',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#07131b'
   },
   nomeHeader: {
-    color: '#ffffff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#ffffff',
     marginTop: 12
   },
   formCard: {
-    backgroundColor: '#0b1d28',
+    backgroundColor: '#0c202d',
     borderRadius: 18,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#133547'
+    borderColor: '#1e3a4f',
+    gap: 16
   },
   inputGrupo: {
-    marginBottom: 16
+    gap: 6
   },
   label: {
-    color: '#94a3b8',
     fontSize: 13,
-    marginBottom: 8,
-    fontWeight: '500'
+    fontWeight: '600',
+    color: '#94a3b8'
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#07131b',
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: '#1e3a4f',
+    paddingHorizontal: 14
   },
   inputBloqueado: {
-    backgroundColor: '#0a1620',
-    borderColor: '#162b3a'
+    backgroundColor: '#091924',
+    borderColor: '#152b3c'
   },
   input: {
     flex: 1,
+    height: 48,
     color: '#ffffff',
-    paddingVertical: 12,
-    fontSize: 15
+    fontSize: 14
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
   },
   botaoSalvar: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
-    paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0284c7',
+    height: 50,
+    borderRadius: 14,
+    marginTop: 12
   },
-  textoBotaoSalvar: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold'
+  botaoSalvarTexto: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff'
   }
 });

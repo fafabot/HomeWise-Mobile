@@ -12,8 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function EnergiaScreen() {
   const router = useRouter();
+  const { dispositivoId } = useAuth();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
@@ -21,17 +24,17 @@ export default function EnergiaScreen() {
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
-    });
+    }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
       setHistorico(dados);
-    });
+    }, 30, dispositivoId);
 
     return () => {
       unsubLeitura();
       unsubHistorico();
     };
-  }, []);
+  }, [dispositivoId]);
 
   // Dados reais
   const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';

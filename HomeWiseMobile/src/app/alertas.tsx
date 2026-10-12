@@ -12,16 +12,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, Leitura } from '@/services/leiturasService';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function AlertasScreen() {
   const router = useRouter();
+  const { dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
 
   useEffect(() => {
     const unsub = observarUltimaLeitura((dados) => {
       setLeitura(dados);
-    });
+    }, dispositivoId);
     return () => unsub();
-  }, []);
+  }, [dispositivoId]);
 
   // Regras reais de anomalia baseadas nos sensores
   const vazamentoAtivo = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;

@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   card: { flexGrow: 1, width: '100%', backgroundColor: '#091321' },
   hero: { height: 435, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', paddingTop: 8, paddingBottom: 38 },
   heroImage: { opacity: 0.20 },
-  shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.10)' },
+  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.10)' },
   brand: { alignItems: 'center', paddingHorizontal: 16 },
   tagline: { color: '#edf4ff', fontSize: 19, fontWeight: '500', lineHeight: 27, letterSpacing: 0.1, marginTop: 10, textAlign: 'center' },
   panel: { flexGrow: 1, backgroundColor: '#101f33', marginTop: -22, paddingHorizontal: 28, paddingTop: 17, paddingBottom: 28, borderTopLeftRadius: 42, borderTopRightRadius: 42, alignItems: 'center' },

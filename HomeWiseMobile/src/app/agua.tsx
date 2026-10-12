@@ -12,8 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function AguaScreen() {
   const router = useRouter();
+  const { dispositivoId } = useAuth();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
@@ -21,17 +24,17 @@ export default function AguaScreen() {
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
-    });
+    }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
       setHistorico(dados);
-    });
+    }, 30, dispositivoId);
 
     return () => {
       unsubLeitura();
       unsubHistorico();
     };
-  }, []);
+  }, [dispositivoId]);
 
   // Dados reais do sensor YF-S201
   const litrosHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
