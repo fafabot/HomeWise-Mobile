@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Alert
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,28 +19,26 @@ export default function PerfilScreen() {
   const router = useRouter();
   const { user: usuario, perfil, dispositivoId } = useAuth();
   const [saindo, setSaindo] = useState(false);
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
+  const [erroSaida, setErroSaida] = useState('');
+  const saidaEmAndamento = useRef(false);
   const nomeExibicao = perfil?.nome || usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
   const emailExibicao = usuario?.email || '';
   const iniciais = nomeExibicao.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   async function handleSair() {
-    Alert.alert(
-      'Sair da conta',
-      'Deseja realmente sair da sua conta HomeWise?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            setSaindo(true);
-            try { await deslogarUsuario(); }
-            catch (error) { Alert.alert('Não foi possível sair', authErrorMessage(error)); }
-            finally { setSaindo(false); }
-          }
-        }
-      ]
-    );
+    if (saidaEmAndamento.current) return;
+    saidaEmAndamento.current = true;
+    setSaindo(true);
+    setErroSaida('');
+    try {
+      await deslogarUsuario();
+    } catch (error) {
+      setErroSaida(authErrorMessage(error));
+    } finally {
+      saidaEmAndamento.current = false;
+      setSaindo(false);
+    }
   }
 
   const opcoes = [
@@ -73,8 +71,8 @@ export default function PerfilScreen() {
       id: 4,
       titulo: 'Plano e assinatura',
       icone: 'card-outline' as const,
-      badge: 'Plus',
-      acao: () => Alert.alert('Plano HomeWise', 'Você está utilizando o plano Plus com monitoramento em tempo real!')
+      badge: 'Sem plano',
+      acao: () => router.push('/plano-assinatura')
     },
     {
       id: 5,
@@ -144,17 +142,54 @@ export default function PerfilScreen() {
         </View>
 
         {/* Botao Sair da Conta com Firebase signOut */}
-        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} disabled={saindo} onPress={handleSair}>
+        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => { setErroSaida(''); setConfirmandoSaida(true); }}>
           <Ionicons name="log-out-outline" size={18} color="#f87171" style={{ marginRight: 8 }} />
           <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
         </TouchableOpacity>
 
       </ScrollView>
+      <Modal visible={confirmandoSaida} transparent animationType="fade" onRequestClose={() => { if (!saidaEmAndamento.current) setConfirmandoSaida(false); }}>
+        <View style={styles.fundoModal}>
+          <View style={styles.modalSaida} accessibilityViewIsModal>
+            <Text accessibilityRole="header" style={styles.tituloHeader}>Sair da conta</Text>
+            <Text style={styles.mensagemSaida}>Deseja realmente sair da sua conta HomeWise?</Text>
+            {!!erroSaida && <Text accessibilityRole="alert" style={styles.textoSair}>{erroSaida}</Text>}
+            <View style={styles.acoesSaida}>
+              <TouchableOpacity accessibilityRole="button" style={styles.botaoEditarPerfil} disabled={saindo} onPress={() => setConfirmandoSaida(false)}>
+                <Text style={styles.textoEditarPerfil}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={[styles.botaoSair, styles.confirmarSaida]} disabled={saindo} onPress={handleSair}>
+                <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  fundoModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24
+  },
+  modalSaida: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#0b1d28',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1e3a4b',
+    padding: 24,
+    gap: 16
+  },
+  mensagemSaida: { color: '#e2e8f0', fontSize: 15, lineHeight: 22 },
+  acoesSaida: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
+  confirmarSaida: { marginTop: 0, paddingHorizontal: 24 },
   container: {
     flex: 1,
     backgroundColor: '#07131b'

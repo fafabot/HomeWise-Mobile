@@ -35,6 +35,8 @@ function Navigation() {
           <Stack.Screen name="perfil" />
           <Stack.Screen name="editar-perfil" />
           <Stack.Screen name="alterar-senha" />
+          <Stack.Screen name="plano-assinatura" />
+          <Stack.Screen name="gerenciar-assinatura" />
         </Stack.Protected>
       </Stack>
       {user && entry && <HomeWiseTabBar />}
