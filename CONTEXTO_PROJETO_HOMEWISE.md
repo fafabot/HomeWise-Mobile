@@ -97,8 +97,7 @@ O ecossistema adota ingestão direta **ESP8266 $\rightarrow$ Google Cloud Firest
 
 * **Localização:** `HomeWise-Mobile/HomeWiseMobile`
 * **Stack:** React Native, Expo SDK 57, TypeScript, Firebase JS SDK 13.
-* **Autenticação:** Firebase Authentication (E-mail/Senha com persistência local AsyncStorage).
-* **Associação de Central:** Cada morador tem seu `dispositivo_id` vinculado em `usuarios/{uid}` (padrão: `central_homewise_01`).
+* **Associação e Isolamento de Centrais:** Cada morador tem seu `dispositivo_id` vinculado em `usuarios/{uid}`. Não há vinculação padrão forçada: se um usuário novo se cadastrar sem vincular uma central, o app exibe um banner de pareamento na home e bloqueia a leitura de dados de centrais alheias, garantindo total privacidade multitenant.
 
 ### Serviço de Leituras em Tempo Real ([`leiturasService.ts`](file:///d:/Windows/Documentos/senai/TCC/HomeWise-Mobile/HomeWiseMobile/src/services/leiturasService.ts))
 * Implementa escuta reativa `onSnapshot` com ordenação cronológica decrescente (`orderBy("criado_em", "desc")`).
@@ -133,3 +132,4 @@ Olá! Estou continuando o desenvolvimento do projeto HomeWise (TCC SENAI Suzano 
 Por favor, leia o arquivo "CONTEXTO_PROJETO_HOMEWISE.md" presente na raiz do repositório para carregar todo o contexto técnico de hardware (ESP8266, YF-S201, PZEM-004T), nuvem Firebase Firestore e aplicativo React Native Expo SDK 57.
 Confirme que leu e aguarde minha próxima instrução.
 ```
+
