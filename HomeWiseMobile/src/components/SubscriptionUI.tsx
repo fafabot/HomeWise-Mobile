@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 export function SubscriptionScreen({ title, onBack, children }: PropsWithChildren<{ title: string; onBack: () => void }>) {
   return (
     <SafeAreaView style={subscriptionStyles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#07131b" />
+      <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={subscriptionStyles.content}>
         <View style={subscriptionStyles.header}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBack} style={subscriptionStyles.back}><Ionicons name="arrow-back" size={20} color="#fff" /></TouchableOpacity>

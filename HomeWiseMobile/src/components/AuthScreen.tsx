@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
@@ -22,10 +22,10 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
-  const emailInput = useRef<TextInput>(null);
-  const dispositivoInput = useRef<TextInput>(null);
-  const passwordInput = useRef<TextInput>(null);
-  const confirmationInput = useRef<TextInput>(null);
+  const emailInput = useRef<ComponentRef<typeof TextInput>>(null);
+  const dispositivoInput = useRef<ComponentRef<typeof TextInput>>(null);
+  const passwordInput = useRef<ComponentRef<typeof TextInput>>(null);
+  const confirmationInput = useRef<ComponentRef<typeof TextInput>>(null);
 
   async function submit() {
     if (submitting.current) return;
@@ -76,7 +76,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#091321" />
+      <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>

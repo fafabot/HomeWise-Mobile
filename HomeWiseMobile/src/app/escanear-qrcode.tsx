@@ -52,7 +52,7 @@ export default function EscanearQRCodeScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView style={[styles.container, styles.centralizado, { paddingHorizontal: 32 }]}>
-        <StatusBar barStyle="light-content" backgroundColor="#07131b" />
+        <StatusBar barStyle="light-content" />
         <View style={styles.iconePermissao}>
           <Ionicons name="camera-outline" size={48} color="#22d3ee" />
         </View>
@@ -111,7 +111,7 @@ export default function EscanearQRCodeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="light-content" />
 
       {/* Câmera em Tela Cheia */}
       <CameraView
