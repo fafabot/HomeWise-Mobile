@@ -99,22 +99,38 @@ export default function HomeScreen() {
 
         {/* Banner de Vinculacao de Central quando nao vinculada */}
         {!dispositivoId && (
-          <TouchableOpacity
-            style={styles.cardSemCentral}
-            activeOpacity={0.8}
-            onPress={() => router.push('/editar-perfil')}
-          >
-            <View style={styles.iconeSemCentral}>
-              <Ionicons name="hardware-chip-outline" size={24} color="#f59e0b" />
+          <View style={styles.cardSemCentral}>
+            <View style={styles.topoCardSemCentral}>
+              <View style={styles.iconeSemCentral}>
+                <Ionicons name="hardware-chip-outline" size={24} color="#f59e0b" />
+              </View>
+              <View style={styles.conteudoSemCentral}>
+                <Text style={styles.tituloSemCentral}>Vincule sua Central HomeWise</Text>
+                <Text style={styles.descricaoSemCentral}>
+                  Escaneie o QR Code ou informe o código da sua central para acompanhar suas medições.
+                </Text>
+              </View>
             </View>
-            <View style={styles.conteudoSemCentral}>
-              <Text style={styles.tituloSemCentral}>Vincule sua Central HomeWise</Text>
-              <Text style={styles.descricaoSemCentral}>
-                Toque aqui para informar o identificador da sua central e visualizar suas medições.
-              </Text>
+
+            <View style={styles.botoesAcaoSemCentral}>
+              <TouchableOpacity
+                style={styles.botaoScanPrincipal}
+                activeOpacity={0.8}
+                onPress={() => router.push('/escanear-qrcode' as any)}
+              >
+                <Ionicons name="qr-code-outline" size={16} color="#07131b" style={{ marginRight: 6 }} />
+                <Text style={styles.textoBotaoScanPrincipal}>Escanear QR Code</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.botaoDigitarSecundario}
+                activeOpacity={0.7}
+                onPress={() => router.push('/editar-perfil')}
+              >
+                <Text style={styles.textoBotaoDigitarSecundario}>Digitar Código</Text>
+              </TouchableOpacity>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#f59e0b" />
-          </TouchableOpacity>
+          </View>
         )}
 
         {/* Linha dos Cards de Agua e Energia com Dados Reais */}
@@ -578,11 +594,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1c1917',
     borderRadius: 16,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#78350f'
+  },
+  topoCardSemCentral: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14
   },
   iconeSemCentral: {
     width: 44,
@@ -594,8 +613,7 @@ const styles = StyleSheet.create({
   },
   conteudoSemCentral: {
     flex: 1,
-    marginLeft: 12,
-    marginRight: 8
+    marginLeft: 12
   },
   tituloSemCentral: {
     color: '#fbbf24',
@@ -607,5 +625,38 @@ const styles = StyleSheet.create({
     color: '#d97706',
     fontSize: 12,
     lineHeight: 16
+  },
+  botoesAcaoSemCentral: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  botaoScanPrincipal: {
+    flex: 1.3,
+    flexDirection: 'row',
+    backgroundColor: '#22d3ee',
+    borderRadius: 10,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  textoBotaoScanPrincipal: {
+    color: '#07131b',
+    fontSize: 13,
+    fontWeight: 'bold'
+  },
+  botaoDigitarSecundario: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  textoBotaoDigitarSecundario: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '600'
   }
 });

@@ -126,7 +126,17 @@ export default function EditarPerfilScreen() {
 
           {/* Campo Codigo da Central */}
           <View style={styles.inputGrupo}>
-            <Text style={styles.label}>Código da Central HomeWise</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <Text style={styles.label}>Código da Central HomeWise</Text>
+              <TouchableOpacity
+                style={styles.botaoScanPequeno}
+                activeOpacity={0.7}
+                onPress={() => router.push('/escanear-qrcode' as any)}
+              >
+                <Ionicons name="qr-code-outline" size={13} color="#22d3ee" style={{ marginRight: 4 }} />
+                <Text style={styles.textoScanPequeno}>Escanear QR Code</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
@@ -136,7 +146,9 @@ export default function EditarPerfilScreen() {
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
               />
-              <Ionicons name="hardware-chip-outline" size={16} color="#38bdf8" />
+              <TouchableOpacity onPress={() => router.push('/escanear-qrcode' as any)} activeOpacity={0.7} style={{ padding: 4 }}>
+                <Ionicons name="camera-outline" size={20} color="#22d3ee" />
+              </TouchableOpacity>
             </View>
             <Text style={styles.helperText}>
               Este código vincula os sensores de água e energia da sua casa à sua conta.
@@ -336,5 +348,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#ffffff'
+  },
+  botaoScanPequeno: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 211, 238, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.25)'
+  },
+  textoScanPequeno: {
+    color: '#22d3ee',
+    fontSize: 11,
+    fontWeight: '600'
   }
 });

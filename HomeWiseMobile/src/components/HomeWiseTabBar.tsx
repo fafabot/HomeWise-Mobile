@@ -15,6 +15,10 @@ export default function HomeWiseTabBar() {
     { name: 'Perfil', route: '/perfil', icon: 'person-outline', iconActive: 'person' }
   ];
 
+  if (pathname === '/escanear-qrcode') {
+    return null;
+  }
+
   return (
     <View style={styles.tabContainer}>
       {tabs.map((tab) => {

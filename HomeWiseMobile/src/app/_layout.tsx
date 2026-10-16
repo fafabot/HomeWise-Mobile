@@ -37,6 +37,7 @@ function Navigation() {
           <Stack.Screen name="alterar-senha" />
           <Stack.Screen name="plano-assinatura" />
           <Stack.Screen name="gerenciar-assinatura" />
+          <Stack.Screen name="escanear-qrcode" options={{ animation: 'slide_from_bottom' }} />
         </Stack.Protected>
       </Stack>
       {user && entry && <HomeWiseTabBar />}
