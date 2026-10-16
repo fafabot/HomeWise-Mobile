@@ -16,12 +16,10 @@ interface AuthContextType {
   atualizarDispositivoId: (novoId: string) => Promise<boolean>;
 }
 
-const DEFAULT_DEVICE_ID = 'central_homewise_01';
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   perfil: null,
-  dispositivoId: DEFAULT_DEVICE_ID,
+  dispositivoId: '',
   loading: true,
   entry: null,
   selectEntry: () => {},
@@ -57,7 +55,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
               uid: account.uid,
               nome: account.displayName || account.email?.split('@')[0] || 'Morador',
               email: account.email || '',
-              dispositivo_id: DEFAULT_DEVICE_ID
+              dispositivo_id: ''
             };
             setPerfil(novoPerfil);
           }
@@ -78,7 +76,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const dispositivoId = perfil?.dispositivo_id?.trim() || DEFAULT_DEVICE_ID;
+  const dispositivoId = perfil?.dispositivo_id?.trim() || '';
 
   async function atualizarDispositivoId(novoId: string): Promise<boolean> {
     if (!user) return false;

@@ -22,7 +22,7 @@ export default function EditarPerfilScreen() {
 
   const [nome, setNome] = useState(perfil?.nome || usuario?.displayName || '');
   const [email] = useState(usuario?.email || '');
-  const [dispositivoId, setDispositivoId] = useState(perfil?.dispositivo_id || 'central_homewise_01');
+  const [dispositivoId, setDispositivoId] = useState(perfil?.dispositivo_id || '');
   const [telefone, setTelefone] = useState(perfil?.telefone || '');
   const [residencia, setResidencia] = useState(perfil?.residencia || '');
   const [cep, setCep] = useState(perfil?.cep || '');

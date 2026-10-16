@@ -86,7 +86,9 @@ export default function HomeScreen() {
             />
             <View>
               <Text style={styles.saudacao}>Olá, {perfil?.nome || user?.displayName || 'Morador'}!</Text>
-              <Text style={styles.subSaudacao}>Central: {dispositivoId}</Text>
+              <Text style={styles.subSaudacao}>
+                {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
+              </Text>
             </View>
           </View>
           <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
@@ -94,6 +96,26 @@ export default function HomeScreen() {
             {(possivelVazamento || consumoElevado) && <View style={styles.badgeNotif} />}
           </TouchableOpacity>
         </View>
+
+        {/* Banner de Vinculacao de Central quando nao vinculada */}
+        {!dispositivoId && (
+          <TouchableOpacity
+            style={styles.cardSemCentral}
+            activeOpacity={0.8}
+            onPress={() => router.push('/editar-perfil')}
+          >
+            <View style={styles.iconeSemCentral}>
+              <Ionicons name="hardware-chip-outline" size={24} color="#f59e0b" />
+            </View>
+            <View style={styles.conteudoSemCentral}>
+              <Text style={styles.tituloSemCentral}>Vincule sua Central HomeWise</Text>
+              <Text style={styles.descricaoSemCentral}>
+                Toque aqui para informar o identificador da sua central e visualizar suas medições.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#f59e0b" />
+          </TouchableOpacity>
+        )}
 
         {/* Linha dos Cards de Agua e Energia com Dados Reais */}
         <View style={styles.rowCards}>
@@ -551,5 +573,39 @@ const styles = StyleSheet.create({
   textoRodapeCentral: {
     color: '#64748b',
     fontSize: 11
+  },
+  cardSemCentral: {
+    backgroundColor: '#1c1917',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#78350f'
+  },
+  iconeSemCentral: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  conteudoSemCentral: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8
+  },
+  tituloSemCentral: {
+    color: '#fbbf24',
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 2
+  },
+  descricaoSemCentral: {
+    color: '#d97706',
+    fontSize: 12,
+    lineHeight: 16
   }
 });

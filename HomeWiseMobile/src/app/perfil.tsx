@@ -105,9 +105,11 @@ export default function PerfilScreen() {
           <Text style={styles.emailUsuario}>{emailExibicao}</Text>
 
           {/* Badge da Central Conectada */}
-          <View style={styles.badgeCentral}>
-            <Ionicons name="hardware-chip" size={13} color="#38bdf8" />
-            <Text style={styles.badgeCentralTexto}>Central: {dispositivoId}</Text>
+          <View style={[styles.badgeCentral, !dispositivoId && { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+            <Ionicons name="hardware-chip" size={13} color={dispositivoId ? "#38bdf8" : "#f59e0b"} />
+            <Text style={[styles.badgeCentralTexto, !dispositivoId && { color: '#f59e0b' }]}>
+              {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
+            </Text>
           </View>
 
           <TouchableOpacity

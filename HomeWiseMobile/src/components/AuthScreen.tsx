@@ -15,7 +15,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
   const [focused, setFocused] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [dispositivo, setDispositivo] = useState('central_homewise_01');
+  const [dispositivo, setDispositivo] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [visible, setVisible] = useState(false);
@@ -56,7 +56,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 
     try {
       if (registering) {
-        const res = await cadastrarUsuario(normalizedEmail, password, nome, dispositivo || 'central_homewise_01');
+        const res = await cadastrarUsuario(normalizedEmail, password, nome, dispositivo.trim());
         if (!res.sucesso) {
           setError(res.erro || 'Erro ao criar conta.');
         }
@@ -144,13 +144,13 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {/* Campo Código da Central (Apenas Cadastro) */}
             {registering && (
               <>
-                <Text style={styles.label}>Código da Central HomeWise</Text>
+                <Text style={styles.label}>Código da Central (opcional)</Text>
                 <View style={[styles.fieldRow, focused === 'dispositivo' && styles.focused]}>
                   <Ionicons name="hardware-chip-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
                   <TextInput
                     ref={dispositivoInput}
                     style={styles.fieldInput}
-                    placeholder="Ex: central_homewise_01"
+                    placeholder="Ex: central_homewise_01 (ou vincule depois)"
                     placeholderTextColor="#95a5bd"
                     value={dispositivo}
                     onChangeText={setDispositivo}

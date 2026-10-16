@@ -21,13 +21,11 @@ export interface Leitura {
   criado_em?: Date;
 }
 
-const DEFAULT_DEVICE_ID = "central_homewise_01";
-
 function converterLeitura(doc: QueryDocumentSnapshot<DocumentData>): Leitura {
   const data = doc.data();
   return {
     id: doc.id,
-    dispositivo_id: data.dispositivo_id || DEFAULT_DEVICE_ID,
+    dispositivo_id: data.dispositivo_id || '',
     consumo_agua_litros: Number(data.consumo_agua_litros || 0),
     vazao_l_min: Number(data.vazao_l_min || 0),
     potencia_w: Number(data.potencia_w || 0),
@@ -41,13 +39,17 @@ function converterLeitura(doc: QueryDocumentSnapshot<DocumentData>): Leitura {
 
 /**
  * Escuta a última leitura em tempo real.
- * Utiliza ordenação nativa por timestamp descendente para garantir a medição mais recente,
- * com fallback automático para ambientes com ou sem índice composto configurado no Firebase.
+ * Se nenhuma central estiver vinculada, retorna null imediatamente sem expor dados de terceiros.
  */
 export function observarUltimaLeitura(
   callback: (leitura: Leitura | null) => void,
-  dispositivoId = DEFAULT_DEVICE_ID
+  dispositivoId = ''
 ) {
+  if (!dispositivoId || !dispositivoId.trim()) {
+    callback(null);
+    return () => {};
+  }
+
   let unsubFallback: (() => void) | null = null;
   let cancelado = false;
 
@@ -119,8 +121,13 @@ export function observarUltimaLeitura(
 export function observarHistorico(
   callback: (leituras: Leitura[]) => void,
   limiteRegistros = 30,
-  dispositivoId = DEFAULT_DEVICE_ID
+  dispositivoId = ''
 ) {
+  if (!dispositivoId || !dispositivoId.trim()) {
+    callback([]);
+    return () => {};
+  }
+
   let unsubFallback: (() => void) | null = null;
   let cancelado = false;
 
