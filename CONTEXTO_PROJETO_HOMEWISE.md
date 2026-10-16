@@ -96,8 +96,8 @@ O ecossistema adota ingestão direta **ESP8266 $\rightarrow$ Google Cloud Firest
 ## 4. Frontend Mobile (HomeWise Mobile)
 
 * **Localização:** `HomeWise-Mobile/HomeWiseMobile`
-* **Stack:** React Native, Expo SDK 57, TypeScript, Firebase JS SDK 13.
 * **Associação e Isolamento de Centrais:** Cada morador tem seu `dispositivo_id` vinculado em `usuarios/{uid}`. Não há vinculação padrão forçada: se um usuário novo se cadastrar sem vincular uma central, o app exibe um banner de pareamento na home e bloqueia a leitura de dados de centrais alheias, garantindo total privacidade multitenant.
+* **Leitor Nativo de QR Code (`expo-camera`):** Scanner de câmera integrado em tempo real (`/escanear-qrcode`) com moldura visual de mira e lanterna, permitindo escanear a etiqueta QR Code da central física e vinculá-la instantaneamente sem necessidade de digitação.
 
 ### Serviço de Leituras em Tempo Real ([`leiturasService.ts`](file:///d:/Windows/Documentos/senai/TCC/HomeWise-Mobile/HomeWiseMobile/src/services/leiturasService.ts))
 * Implementa escuta reativa `onSnapshot` com ordenação cronológica decrescente (`orderBy("criado_em", "desc")`).
