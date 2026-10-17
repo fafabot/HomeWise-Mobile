@@ -107,6 +107,17 @@ O ecossistema adota ingestão direta **ESP8266 $\rightarrow$ Google Cloud Firest
 * **Link para ativação com 1 clique do índice composto no console do Firebase:**
   `https://console.firebase.google.com/v1/r/project/homewise-65bb1/firestore/indexes?create_composite=Ck9wcm9qZWN0cy9ob21ld2lzZS02NWJiMS9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvbGVpdHVyYXMvaW5kZXhlcy9fEAEaEgoOZGlzcG9zaXRpdm9faWQQARoNCgljcmlhZG9fZW0QAhoMCghfX25hbWVfXxAC`
 
+### Agregação Temporal Diária e Linha de Base Adaptativa de 30 Dias ([`baselineService.ts`](file:///d:/Windows/Documentos/senai/TCC/HomeWise-Mobile/HomeWiseMobile/src/services/baselineService.ts))
+* **Proteção de Quota Gratuita (Spark Tier):** Em vez de acumular leituras de 10s indefinidamente ou depender de Cloud Functions pagas, o app realiza *downsampling* automático das leituras recebidas na coleção `consumo_diario/{dispositivo_id}_{data}` com `setDoc(..., { merge: true })`.
+* **Coleção `consumo_diario`:**
+  * Document ID: `${dispositivo_id}_${YYYY-MM-DD}` (ex: `central_homewise_01_2026-10-16`)
+  * Campos: `dispositivo_id`, `data`, `agua_litros`, `energia_kwh`, `atualizado_em`.
+* **Inteligência de Calibração (Primeiros 30 Dias):**
+  * Período de aprendizado automático dos hábitos de consumo da residência.
+  * O app calcula a média diária de água ($L/\text{dia}$) e energia ($kWh/\text{dia}$) consolidadas.
+  * Durante os primeiros 30 dias: exibe status de calibração em tempo real com barra de progresso visual ($N/30$ dias) no Dashboard e nas telas de Água e Energia.
+  * Após o 30º dia: fixa a Linha de Base Adaptativa (*meta comportamental real da casa*), alertando o morador caso o consumo diário exceda em +20% a sua média habitual aprendida.
+
 ---
 
 ## 5. Status Atual e Branches do Git

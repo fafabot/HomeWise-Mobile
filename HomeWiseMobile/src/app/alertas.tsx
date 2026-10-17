@@ -11,6 +11,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, Leitura } from '@/services/leiturasService';
+import {
+  observarHistoricoDiario,
+  calcularStatusBaseline,
+  ConsumoDiario,
+  StatusBaseline
+} from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -18,13 +24,28 @@ export default function AlertasScreen() {
   const router = useRouter();
   const { dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
 
   useEffect(() => {
     const unsub = observarUltimaLeitura((dados) => {
       setLeitura(dados);
     }, dispositivoId);
-    return () => unsub();
+
+    const unsubDiario = observarHistoricoDiario((dados) => {
+      setHistoricoDiario(dados);
+    }, dispositivoId);
+
+    return () => {
+      unsub();
+      unsubDiario();
+    };
   }, [dispositivoId]);
+
+  const statusBaseline: StatusBaseline = calcularStatusBaseline(
+    historicoDiario,
+    leitura ? Number(leitura.consumo_agua_litros) : 0,
+    leitura ? Number(leitura.energia_kwh) : 0
+  );
 
   // Regras reais de anomalia baseadas nos sensores
   const vazamentoAtivo = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
@@ -75,6 +96,19 @@ export default function AlertasScreen() {
       corBorda: '#14532d',
       corFundo: '#0b2419',
       corTexto: '#4ade80'
+    },
+    {
+      id: 5,
+      tipo: statusBaseline.fase === 'calibrado' ? 'sucesso' : 'aviso',
+      titulo: statusBaseline.fase === 'calibrado' ? 'Linha de Base Calibrada' : 'Fase de Aprendizado Ativa',
+      local: `Inteligência Comportamental • ${statusBaseline.diasRegistrados}/${statusBaseline.metaDias} dias analisados`,
+      descricao: statusBaseline.fase === 'calibrado'
+        ? `A média diária da sua residência foi calibrada em ${statusBaseline.mediaAguaLitrosDia} L/dia de água e ${statusBaseline.mediaEnergiaKwhDia} kWh/dia de energia. O sistema monitora e alerta desvios anormais superiores a 20%.`
+        : 'Durante os primeiros 30 dias de uso, o ecossistema HomeWise aprende a rotina real dos moradores para personalizar os alertas de desperdício sem falsos positivos.',
+      icone: 'analytics' as const,
+      corBorda: statusBaseline.fase === 'calibrado' ? '#0369a1' : '#854d0e',
+      corFundo: statusBaseline.fase === 'calibrado' ? '#0c2333' : '#2e2009',
+      corTexto: statusBaseline.fase === 'calibrado' ? '#38bdf8' : '#facc15'
     }
   ];
 

@@ -11,6 +11,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarHistoricoDiario,
+  calcularStatusBaseline,
+  ConsumoDiario
+} from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +25,7 @@ export default function AguaScreen() {
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
+  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
 
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
@@ -30,21 +36,30 @@ export default function AguaScreen() {
       setHistorico(dados);
     }, 30, dispositivoId);
 
+    const unsubDiario = observarHistoricoDiario((dados) => {
+      setHistoricoDiario(dados);
+    }, dispositivoId);
+
     return () => {
       unsubLeitura();
       unsubHistorico();
+      unsubDiario();
     };
   }, [dispositivoId]);
+
+  const statusBaseline = calcularStatusBaseline(
+    historicoDiario,
+    leitura ? Number(leitura.consumo_agua_litros) : 0,
+    leitura ? Number(leitura.energia_kwh) : 0
+  );
 
   // Dados reais do sensor YF-S201
   const litrosHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
   const vazaoLMin = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
-  const previsaoMesLitros = (Number(litrosHoje) * 30).toFixed(0);
+  const previsaoMesLitros = (statusBaseline.mediaAguaLitrosDia * 30).toFixed(0);
 
   // Calcula medias reais do historico
-  const mediaDiariaLitros = historico.length > 0
-    ? (historico.reduce((acc, c) => acc + c.consumo_agua_litros, 0) / historico.length).toFixed(1)
-    : litrosHoje;
+  const mediaDiariaLitros = statusBaseline.mediaAguaLitrosDia.toFixed(1);
 
   // Monta barras dinâmicas a partir das ultimas leituras do sensor
   const barras = historico.length >= 7
@@ -137,16 +152,18 @@ export default function AguaScreen() {
             </TouchableOpacity>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média diária calculada</Text>
-            <Text style={styles.resumoValor}>{mediaDiariaLitros} L</Text>
+            <Text style={styles.resumoLabel}>Média diária aprendida</Text>
+            <Text style={styles.resumoValor}>{mediaDiariaLitros} L/dia</Text>
           </View>
           <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Previsão para 30 dias</Text>
-            <Text style={styles.resumoValor}>{previsaoMesLitros} L</Text>
+            <Text style={styles.resumoLabel}>Linha de Base</Text>
+            <Text style={[styles.resumoValor, { color: statusBaseline.fase === 'calibrado' ? '#22c55e' : '#38bdf8' }]}>
+              {statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
+            </Text>
           </View>
           <View style={[styles.resumoLinha, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resumoLabel}>Total de medições registradas</Text>
-            <Text style={styles.resumoValor}>{historico.length}</Text>
+            <Text style={styles.resumoLabel}>Previsão mensal</Text>
+            <Text style={styles.resumoValor}>{previsaoMesLitros} L</Text>
           </View>
         </View>
 

@@ -9,6 +9,7 @@ import {
   QueryDocumentSnapshot
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { sincronizarConsumoDiario } from "./baselineService";
 
 export interface Leitura {
   id?: string;
@@ -66,7 +67,9 @@ export function observarUltimaLeitura(
     (snapshot) => {
       if (cancelado) return;
       if (!snapshot.empty) {
-        callback(converterLeitura(snapshot.docs[0]));
+        const item = converterLeitura(snapshot.docs[0]);
+        callback(item);
+        void sincronizarConsumoDiario(item);
       } else {
         callback(null);
       }
@@ -95,6 +98,7 @@ export function observarUltimaLeitura(
 
           if (correspondentes.length > 0) {
             callback(correspondentes[0]);
+            void sincronizarConsumoDiario(correspondentes[0]);
           } else {
             callback(null);
           }

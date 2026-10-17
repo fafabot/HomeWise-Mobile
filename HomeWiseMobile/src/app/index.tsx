@@ -12,6 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarHistoricoDiario,
+  calcularStatusBaseline,
+  ConsumoDiario,
+  StatusBaseline
+} from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -24,6 +30,7 @@ export default function HomeScreen() {
   const { user, perfil, dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
+  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
 
   useEffect(() => {
     // Escuta a leitura mais recente em tempo real do ESP8266 para o dispositivo deste usuario
@@ -31,14 +38,20 @@ export default function HomeScreen() {
       setLeitura(dados);
     }, dispositivoId);
 
-    // Escuta o historico para calculo de acumulados
+    // Escuta o historico recente de leituras para graficos rapidos
     const unsubHistorico = observarHistorico((dados) => {
       setHistorico(dados);
     }, 30, dispositivoId);
 
+    // Escuta os resumos diarios agregados para calculo da linha de base
+    const unsubDiario = observarHistoricoDiario((dados) => {
+      setHistoricoDiario(dados);
+    }, dispositivoId);
+
     return () => {
       unsubLeitura();
       unsubHistorico();
+      unsubDiario();
     };
   }, [dispositivoId]);
 
@@ -49,19 +62,26 @@ export default function HomeScreen() {
   const potenciaAtual = leitura ? Number(leitura.potencia_w).toFixed(0) : '0';
   const tensaoAtual = leitura ? Number(leitura.tensao_v).toFixed(0) : '0';
 
-  // Acumulado do mes (estimado ou somado do historico)
-  const aguaMes = historico.length > 0
-    ? historico.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(0)
+  // Acumulado do mes a partir dos resumos diarios agregados (Downsampling)
+  const aguaMes = historicoDiario.length > 0
+    ? historicoDiario.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(0)
     : (leitura ? (leitura.consumo_agua_litros * 25).toFixed(0) : '0');
 
-  const energiaMes = historico.length > 0
-    ? historico.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(1)
+  const energiaMes = historicoDiario.length > 0
+    ? historicoDiario.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(1)
     : (leitura ? (leitura.energia_kwh * 25).toFixed(1) : '0.0');
 
   // Custo estimado do mes
   const custoAgua = Number(aguaMes) * TARIFA_AGUA_POR_LITRO;
   const custoEnergia = Number(energiaMes) * TARIFA_ENERGIA_KWH;
   const totalPrevisto = (custoAgua + custoEnergia).toFixed(2);
+
+  // Inteligencia da Linha de Base (Baseline de 30 dias)
+  const statusBaseline: StatusBaseline = calcularStatusBaseline(
+    historicoDiario,
+    leitura ? Number(leitura.consumo_agua_litros) : 0,
+    leitura ? Number(leitura.energia_kwh) : 0
+  );
 
   // Deteccao automatica de anomalias/vazamento
   const possivelVazamento = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
@@ -192,6 +212,60 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* Card de Inteligencia e Linha de Base Adaptativa */}
+        <View style={styles.cardBaseline}>
+          <View style={styles.baselineTopo}>
+            <View style={styles.baselineIconeBox}>
+              <Ionicons
+                name={statusBaseline.fase === 'calibrado' ? 'sparkles' : 'hourglass-outline'}
+                size={18}
+                color="#38bdf8"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.baselineEtiqueta}>INTELIGÊNCIA HOMETRACK • LINHA DE BASE</Text>
+              <Text style={styles.baselineTitulo}>{statusBaseline.mensagem}</Text>
+            </View>
+            <View style={[
+              styles.badgeFase,
+              statusBaseline.fase === 'calibrado' ? styles.badgeFaseCalibrado : styles.badgeFaseAprendizado
+            ]}>
+              <Text style={[
+                styles.badgeFaseTexto,
+                statusBaseline.fase === 'calibrado' ? { color: '#22c55e' } : { color: '#38bdf8' }
+              ]}>
+                {statusBaseline.fase === 'calibrado' ? 'CALIBRADO' : `${statusBaseline.progressoPorcentagem}%`}
+              </Text>
+            </View>
+          </View>
+
+          {/* Barra de Progresso ou Metricas */}
+          {statusBaseline.fase === 'aprendizado' ? (
+            <View style={styles.barraProgressoContainer}>
+              <View style={styles.trilhoProgresso}>
+                <View style={[styles.preenchimentoProgresso, { width: `${Math.max(statusBaseline.progressoPorcentagem, 8)}%` }]} />
+              </View>
+              <Text style={styles.subProgresso}>
+                {statusBaseline.diasRegistrados} de {statusBaseline.metaDias} dias analisados • Calibrando rotina residencial
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.baselineMetricas}>
+              <View style={styles.itemMetricaBaseline}>
+                <Text style={styles.labelMetricaBaseline}>Média Água Aprendida</Text>
+                <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaAguaLitrosDia} L/dia</Text>
+              </View>
+              <View style={styles.divisorMetrica} />
+              <View style={styles.itemMetricaBaseline}>
+                <Text style={styles.labelMetricaBaseline}>Média Energia Aprendida</Text>
+                <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaEnergiaKwhDia} kWh/dia</Text>
+              </View>
+            </View>
+          )}
+
+          <Text style={styles.dicaBaseline}>{statusBaseline.dica}</Text>
         </View>
 
         {/* Sessao Alertas Ativos */}
@@ -658,5 +732,110 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 13,
     fontWeight: '600'
+  },
+  cardBaseline: {
+    backgroundColor: '#0c1a24',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1e3a4f'
+  },
+  baselineTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  baselineIconeBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12
+  },
+  baselineEtiqueta: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+    marginBottom: 2
+  },
+  baselineTitulo: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  badgeFase: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1
+  },
+  badgeFaseAprendizado: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderColor: '#0284c7'
+  },
+  badgeFaseCalibrado: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderColor: '#22c55e'
+  },
+  badgeFaseTexto: {
+    fontSize: 11,
+    fontWeight: 'bold'
+  },
+  barraProgressoContainer: {
+    marginBottom: 10
+  },
+  trilhoProgresso: {
+    height: 8,
+    backgroundColor: '#07131b',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6
+  },
+  preenchimentoProgresso: {
+    height: '100%',
+    backgroundColor: '#38bdf8',
+    borderRadius: 4
+  },
+  subProgresso: {
+    color: '#94a3b8',
+    fontSize: 11
+  },
+  baselineMetricas: {
+    flexDirection: 'row',
+    backgroundColor: '#07131b',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    justifyContent: 'space-around',
+    alignItems: 'center'
+  },
+  itemMetricaBaseline: {
+    alignItems: 'center',
+    flex: 1
+  },
+  divisorMetrica: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#1e3a4f'
+  },
+  labelMetricaBaseline: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginBottom: 2
+  },
+  valorMetricaBaseline: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  dicaBaseline: {
+    color: '#64748b',
+    fontSize: 11,
+    lineHeight: 16,
+    fontStyle: 'italic'
   }
 });
