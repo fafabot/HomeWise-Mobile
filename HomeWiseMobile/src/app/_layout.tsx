@@ -32,6 +32,7 @@ function Navigation() {
           <Stack.Screen name="agua" />
           <Stack.Screen name="energia" />
           <Stack.Screen name="alertas" />
+          <Stack.Screen name="configuracoes-alerta" />
           <Stack.Screen name="perfil" />
           <Stack.Screen name="metas" />
           <Stack.Screen name="editar-perfil" />

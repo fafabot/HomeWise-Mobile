@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function AlertasScreen() {
   const router = useRouter();
-  const { dispositivoId } = useAuth();
+  const { dispositivoId, perfil } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
 
@@ -123,7 +123,9 @@ export default function AlertasScreen() {
             <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloHeader}>Alertas e Diagnóstico</Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity style={styles.botaoVoltar} accessibilityRole="button" accessibilityLabel="Configurar alertas" onPress={() => router.push('/configuracoes-alerta')}>
+            <Ionicons name="settings-outline" size={20} color="#ffffff" />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.subtituloPagina}>
@@ -131,7 +133,10 @@ export default function AlertasScreen() {
         </Text>
 
         {/* Lista de Alertas Baseada no Estado Real dos Sensores */}
-        {alertas.map((alerta) => (
+        {perfil?.receber_alertas === false && (
+          <Text style={styles.descAlerta}>Os alertas estão desativados. Você pode ativá-los nas configurações. O monitoramento continua funcionando.</Text>
+        )}
+        {alertas.filter((alerta) => perfil?.receber_alertas !== false || alerta.id >= 4).map((alerta) => (
           <View
             key={alerta.id}
             style={[styles.cardAlerta, { backgroundColor: alerta.corFundo, borderColor: alerta.corBorda }]}

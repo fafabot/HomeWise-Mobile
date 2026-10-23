@@ -277,7 +277,12 @@ export default function HomeScreen() {
         </View>
 
         {/* Card Dinâmico de Alerta */}
-        {possivelVazamento ? (
+        {perfil?.receber_alertas === false ? (
+          <TouchableOpacity style={styles.cardSemAlerta} accessibilityRole="button" onPress={() => router.push('/configuracoes-alerta')}>
+            <Ionicons name="notifications-off-outline" size={20} color="#94a3b8" />
+            <Text style={styles.textoSemAlerta}>Alertas desativados. Toque para configurar.</Text>
+          </TouchableOpacity>
+        ) : possivelVazamento ? (
           <TouchableOpacity style={styles.cardAlertaCritico} activeOpacity={0.8} onPress={() => router.push('/alertas')}>
             <View style={styles.alertaIconeBox}>
               <Ionicons name="warning" size={20} color="#f87171" />

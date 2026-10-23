@@ -89,7 +89,7 @@ export default function PerfilScreen() {
       id: 5,
       titulo: 'Configurações de alerta',
       icone: 'notifications-outline' as const,
-      acao: () => router.push('/alertas')
+      acao: () => router.push('/configuracoes-alerta')
     },
     {
       id: 6,
