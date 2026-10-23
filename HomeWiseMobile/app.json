@@ -8,9 +8,11 @@
     "scheme": "homewisemobile",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.homewise.mobile",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.homewise.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
