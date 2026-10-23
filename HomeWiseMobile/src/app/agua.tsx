@@ -10,7 +10,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  observarHistorico,
+  centralEstaOnline,
+  leituraEhDeHoje,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -27,10 +33,19 @@ export default function AguaScreen() {
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAgoraMs(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
@@ -48,15 +63,18 @@ export default function AguaScreen() {
     };
   }, [dispositivoId]);
 
+  const online = centralEstaOnline(leitura, agoraMs);
+  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+
   const statusBaseline = calcularStatusBaseline(
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
+    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
   );
 
-  // Dados reais do sensor YF-S201
-  const litrosHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
-  const vazaoLMin = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  // Dados reais do sensor YF-S201 (vazão instantânea zera quando a central está desligada)
+  const litrosHoje = ehDeHoje && leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
+  const vazaoLMin = online && leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
   const previsaoMesLitros = (statusBaseline.mediaAguaLitrosDia * 30).toFixed(0);
 
   // Calcula medias reais do historico

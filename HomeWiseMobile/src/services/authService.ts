@@ -97,7 +97,7 @@ export async function cadastrarUsuario(
   email: string,
   senha: string,
   nome?: string,
-  dispositivoId: string = 'central_homewise_01'
+  dispositivoId: string = ''
 ): Promise<AuthResultado> {
   try {
     const credenciais = await createUserWithEmailAndPassword(auth, email.trim(), senha);
@@ -111,7 +111,7 @@ export async function cadastrarUsuario(
         uid: user.uid,
         nome: nomeExibicao,
         email: email.trim().toLowerCase(),
-        dispositivo_id: dispositivoId.trim() || 'central_homewise_01',
+        dispositivo_id: dispositivoId.trim(),
         criado_em: new Date()
       } as any);
     }

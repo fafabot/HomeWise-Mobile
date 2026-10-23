@@ -10,7 +10,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  centralEstaOnline,
+  leituraEhDeHoje,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -25,10 +30,19 @@ export default function AlertasScreen() {
   const { dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAgoraMs(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
 
     const unsubDiario = observarHistoricoDiario((dados) => {
@@ -41,16 +55,58 @@ export default function AlertasScreen() {
     };
   }, [dispositivoId]);
 
+  const temCentral = Boolean(dispositivoId && dispositivoId.trim());
+  const online = temCentral && centralEstaOnline(leitura, agoraMs);
+  const ehDeHoje = temCentral && leituraEhDeHoje(leitura, new Date(agoraMs));
+
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
+    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
   );
 
-  // Regras reais de anomalia baseadas nos sensores
-  const vazamentoAtivo = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
-  const potenciaExcessiva = leitura ? (leitura.potencia_w > 3500) : false;
-  const tensaoAnormal = leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
+  // Regras reais de anomalia baseadas nos sensores (apenas quando a central está transmitindo ao vivo)
+  const vazamentoAtivo = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const potenciaExcessiva = online && leitura ? (leitura.potencia_w > 3500) : false;
+  const tensaoAnormal = online && leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
+
+  const cardStatusCentral = !temCentral
+    ? {
+        id: 4,
+        tipo: 'aviso',
+        titulo: 'Nenhuma Central Vinculada',
+        local: 'Configuração pendente no Perfil',
+        descricao: 'Vincule o código da sua Central HomeWise na aba Perfil para iniciar o monitoramento.',
+        icone: 'link-outline' as const,
+        corBorda: '#854d0e',
+        corFundo: '#2e2009',
+        corTexto: '#facc15'
+      }
+    : online
+    ? {
+        id: 4,
+        tipo: 'sucesso',
+        titulo: 'Monitoramento HomeWise Ativo',
+        local: `Dispositivo ${dispositivoId}`,
+        descricao: 'Os sensores de vazão e grandezas elétricas estão operando e transmitindo em tempo real.',
+        icone: 'shield-checkmark' as const,
+        corBorda: '#14532d',
+        corFundo: '#0b2419',
+        corTexto: '#4ade80'
+      }
+    : {
+        id: 4,
+        tipo: 'aviso',
+        titulo: leitura ? 'Central HomeWise Desligada / Offline' : 'Aguardando Conexão da Central',
+        local: `Dispositivo ${dispositivoId}`,
+        descricao: leitura
+          ? 'A central parou de enviar leituras recentes. Verifique se o ESP8266 está ligado na tomada e conectado ao Wi-Fi.'
+          : 'Aguardando o primeiro envio de dados do ESP8266.',
+        icone: 'cloud-offline-outline' as const,
+        corBorda: '#7f1d1d',
+        corFundo: '#261414',
+        corTexto: '#f87171'
+      };
 
   const alertas = [
     ...(vazamentoAtivo ? [{
@@ -86,17 +142,7 @@ export default function AlertasScreen() {
       corFundo: '#2e2009',
       corTexto: '#facc15'
     }] : []),
-    {
-      id: 4,
-      tipo: 'sucesso',
-      titulo: 'Monitoramento HomeWise Ativo',
-      local: `Dispositivo ${leitura?.dispositivo_id || 'central_homewise_01'}`,
-      descricao: leitura ? 'Os sensores de vazão e grandezas elétricas estão operando e transmitindo normalmente.' : 'Aguardando o primeiro envio de dados do ESP8266.',
-      icone: 'shield-checkmark' as const,
-      corBorda: '#14532d',
-      corFundo: '#0b2419',
-      corTexto: '#4ade80'
-    },
+    cardStatusCentral,
     {
       id: 5,
       tipo: statusBaseline.fase === 'calibrado' ? 'sucesso' : 'aviso',

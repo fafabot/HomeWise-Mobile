@@ -10,7 +10,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  observarHistorico,
+  centralEstaOnline,
+  leituraEhDeHoje,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -27,10 +33,19 @@ export default function EnergiaScreen() {
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAgoraMs(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
@@ -48,15 +63,20 @@ export default function EnergiaScreen() {
     };
   }, [dispositivoId]);
 
+  const online = centralEstaOnline(leitura, agoraMs);
+  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+
   const statusBaseline = calcularStatusBaseline(
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
+    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
   );
 
-  // Dados reais
-  const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
-  const potenciaKw = leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  // Dados reais (potência e tensão instantâneas zeram quando a central está desligada)
+  const energiaHoje = ehDeHoje && leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
+  const potenciaKw = online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  const potenciaW = online && leitura ? leitura.potencia_w.toFixed(0) : '0';
+  const tensaoV = online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
   const previsaoMes = (statusBaseline.mediaEnergiaKwhDia * 30).toFixed(1);
 
   // Calcula medias reais do historico
@@ -106,11 +126,11 @@ export default function EnergiaScreen() {
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Potência instantânea</Text>
-              <Text style={styles.infoValor}>{potenciaKw} kW ({leitura?.potencia_w?.toFixed(0) || '0'} W)</Text>
+              <Text style={styles.infoValor}>{potenciaKw} kW ({potenciaW} W)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.infoLabel}>Tensão na rede</Text>
-              <Text style={styles.infoValor}>{leitura?.tensao_v?.toFixed(1) || '0'} V</Text>
+              <Text style={styles.infoValor}>{tensaoV} V</Text>
             </View>
           </View>
         </View>

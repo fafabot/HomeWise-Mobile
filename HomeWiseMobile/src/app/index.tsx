@@ -11,7 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  centralEstaOnline,
+  leituraEhDeHoje,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -29,19 +34,20 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
-  const [, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setAgoraMs(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     // Escuta a leitura mais recente em tempo real do ESP8266 para o dispositivo deste usuario
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
-
-    // Escuta o historico recente de leituras para graficos rapidos
-    const unsubHistorico = observarHistorico((dados) => {
-      setHistorico(dados);
-    }, 30, dispositivoId);
 
     // Escuta os resumos diarios agregados para calculo da linha de base
     const unsubDiario = observarHistoricoDiario((dados) => {
@@ -50,26 +56,28 @@ export default function HomeScreen() {
 
     return () => {
       unsubLeitura();
-      unsubHistorico();
       unsubDiario();
     };
   }, [dispositivoId]);
 
+  const online = centralEstaOnline(leitura, agoraMs);
+  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+
   // Calculos dinamicos a partir das leituras reais do ESP
-  const aguaHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
-  const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
-  const vazaoAtual = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
-  const potenciaAtual = leitura ? Number(leitura.potencia_w).toFixed(0) : '0';
-  const tensaoAtual = leitura ? Number(leitura.tensao_v).toFixed(0) : '0';
+  const aguaHoje = leitura && ehDeHoje ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
+  const energiaHoje = leitura && ehDeHoje ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
+  const vazaoAtual = leitura && online ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  const potenciaAtual = leitura && online ? Number(leitura.potencia_w).toFixed(0) : '0';
+  const tensaoAtual = leitura && online ? Number(leitura.tensao_v).toFixed(0) : '0';
 
   // Acumulado do mes a partir dos resumos diarios agregados (Downsampling)
   const aguaMes = historicoDiario.length > 0
     ? historicoDiario.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(0)
-    : (leitura ? (leitura.consumo_agua_litros * 25).toFixed(0) : '0');
+    : (leitura && ehDeHoje ? (leitura.consumo_agua_litros * 25).toFixed(0) : '0');
 
   const energiaMes = historicoDiario.length > 0
     ? historicoDiario.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(1)
-    : (leitura ? (leitura.energia_kwh * 25).toFixed(1) : '0.0');
+    : (leitura && ehDeHoje ? (leitura.energia_kwh * 25).toFixed(1) : '0.0');
 
   // Custo estimado do mes
   const custoAgua = Number(aguaMes) * TARIFA_AGUA_POR_LITRO;
@@ -79,16 +87,18 @@ export default function HomeScreen() {
   // Inteligencia da Linha de Base (Baseline de 30 dias)
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    leitura && ehDeHoje ? Number(leitura.consumo_agua_litros) : 0,
+    leitura && ehDeHoje ? Number(leitura.energia_kwh) : 0
   );
 
-  // Deteccao automatica de anomalias/vazamento
-  const possivelVazamento = leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
-  const consumoElevado = leitura ? (leitura.potencia_w > 3500) : false;
+  // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
+  const possivelVazamento = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const consumoElevado = online && leitura ? (leitura.potencia_w > 3500) : false;
 
-  const dataHoraUltimaLeitura = leitura?.criado_em
-    ? new Date(leitura.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const dataHoraUltimaLeitura = leitura?.criado_em && leitura.criado_em.getTime() > 0
+    ? (ehDeHoje
+        ? new Date(leitura.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : new Date(leitura.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))
     : '--:--:--';
 
   return (
@@ -192,19 +202,23 @@ export default function HomeScreen() {
         </View>
 
         {/* Card Situacao Geral */}
-        <View style={[styles.cardSituacao, (possivelVazamento || consumoElevado) && styles.cardSituacaoAlerta]}>
+        <View style={[styles.cardSituacao, (possivelVazamento || consumoElevado || !online) && styles.cardSituacaoAlerta]}>
           <View style={styles.situacaoEsquerda}>
-            <View style={[styles.checkIconBox, (possivelVazamento || consumoElevado) && styles.checkIconBoxAlerta]}>
+            <View style={[styles.checkIconBox, (possivelVazamento || consumoElevado || !online) && styles.checkIconBoxAlerta]}>
               <Ionicons
-                name={possivelVazamento || consumoElevado ? "alert" : "checkmark"}
+                name={possivelVazamento || consumoElevado ? "alert" : !online ? "cloud-offline-outline" : "checkmark"}
                 size={18}
-                color={possivelVazamento || consumoElevado ? "#ffffff" : "#07131b"}
+                color={possivelVazamento || consumoElevado || !online ? "#ffffff" : "#07131b"}
               />
             </View>
             <View>
               <Text style={styles.situacaoLabel}>Situação do sistema</Text>
               <Text style={styles.situacaoStatus}>
-                {possivelVazamento
+                {!dispositivoId
+                  ? "Aguardando vinculação da central"
+                  : !online
+                  ? "Central desligada / sem comunicação"
+                  : possivelVazamento
                   ? "Atenção: Vazão contínua detectada"
                   : consumoElevado
                   ? "Alerta: Potência acima da média"
@@ -302,10 +316,10 @@ export default function HomeScreen() {
               <Ionicons name="hardware-chip-outline" size={16} color="#64748b" />
               <Text style={styles.tempoRealTitulo}>CENTRAL ESP8266</Text>
             </View>
-            <View style={[styles.badgeLive, !leitura && styles.badgeOffline]}>
-              <View style={[styles.pontoLive, !leitura && styles.pontoOffline]} />
-              <Text style={[styles.badgeLiveTexto, !leitura && styles.badgeOfflineTexto]}>
-                {leitura ? "AO VIVO" : "AGUARDANDO ESP"}
+            <View style={[styles.badgeLive, !online && styles.badgeOffline]}>
+              <View style={[styles.pontoLive, !online && styles.pontoOffline]} />
+              <Text style={[styles.badgeLiveTexto, !online && styles.badgeOfflineTexto]}>
+                {online ? "AO VIVO" : !dispositivoId ? "SEM CENTRAL" : leitura ? "DESLIGADA" : "AGUARDANDO ESP"}
               </Text>
             </View>
           </View>
@@ -326,7 +340,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.rodapeCentral}>
-            <Text style={styles.textoRodapeCentral}>Dispositivo: {leitura?.dispositivo_id || dispositivoId || "Não vinculado"}</Text>
+            <Text style={styles.textoRodapeCentral}>Dispositivo: {dispositivoId || "Não vinculado"}</Text>
             <Text style={styles.textoRodapeCentral}>Última atualização: {dataHoraUltimaLeitura}</Text>
           </View>
         </View>
