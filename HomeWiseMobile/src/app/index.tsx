@@ -121,7 +121,8 @@ export default function HomeScreen() {
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
     aguaHojeNum,
-    energiaHojeNum
+    energiaHojeNum,
+    leiturasParaCalculo
   );
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)

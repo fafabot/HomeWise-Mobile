@@ -44,6 +44,71 @@ function obterDataFormatada(dataObj: Date = new Date()): string {
 }
 
 /**
+ * Unifica os documentos de `consumo_diario` com as leituras brutas de `leituras`,
+ * garantindo que qualquer dia com medicao real do ESP8266 seja contabilizado mesmo
+ * que o app nao estivesse aberto naquele dia para gravar o resumo diario.
+ */
+export function consolidarHistoricoDiario(
+  historicoDiario: ConsumoDiario[],
+  leituras: Leitura[] = []
+): ConsumoDiario[] {
+  const mapaPorDia = new Map<string, ConsumoDiario>();
+
+  for (const item of historicoDiario) {
+    if (!item?.data) continue;
+    const existente = mapaPorDia.get(item.data);
+    if (!existente) {
+      mapaPorDia.set(item.data, { ...item });
+    } else {
+      existente.consumo_agua_litros = Math.max(existente.consumo_agua_litros, Number(item.consumo_agua_litros || 0));
+      existente.energia_kwh = Math.max(existente.energia_kwh, Number(item.energia_kwh || 0));
+      existente.pico_potencia_w = Math.max(existente.pico_potencia_w, Number(item.pico_potencia_w || 0));
+      existente.pico_vazao_l_min = Math.max(existente.pico_vazao_l_min, Number(item.pico_vazao_l_min || 0));
+    }
+  }
+
+  for (const leitura of leituras) {
+    if (!leitura?.criado_em) continue;
+    const dataObj = new Date(leitura.criado_em);
+    if (!Number.isFinite(dataObj.getTime()) || dataObj.getTime() <= 0) continue;
+
+    const dataStr = obterDataFormatada(dataObj);
+    const agua = Math.max(Number(leitura.consumo_agua_litros || 0), 0);
+    const energia = Math.max(Number(leitura.energia_kwh || 0), 0);
+    const potencia = Math.max(Number(leitura.potencia_w || 0), 0);
+    const vazao = Math.max(Number(leitura.vazao_l_min || 0), 0);
+    const tensao = Number(leitura.tensao_v || 0);
+
+    const existente = mapaPorDia.get(dataStr);
+    if (!existente) {
+      mapaPorDia.set(dataStr, {
+        id: `${leitura.dispositivo_id || 'central'}_${dataStr}`,
+        dispositivo_id: leitura.dispositivo_id || '',
+        data: dataStr,
+        consumo_agua_litros: agua,
+        energia_kwh: energia,
+        pico_potencia_w: potencia,
+        pico_vazao_l_min: vazao,
+        media_tensao_v: tensao > 0 ? tensao : 127,
+        leituras_computadas: 1,
+        atualizado_em: dataObj
+      });
+    } else {
+      existente.consumo_agua_litros = Math.max(existente.consumo_agua_litros, agua);
+      existente.energia_kwh = Math.max(existente.energia_kwh, energia);
+      existente.pico_potencia_w = Math.max(existente.pico_potencia_w, potencia);
+      existente.pico_vazao_l_min = Math.max(existente.pico_vazao_l_min, vazao);
+      if (tensao > 0) {
+        existente.media_tensao_v = tensao;
+      }
+      existente.leituras_computadas += 1;
+    }
+  }
+
+  return Array.from(mapaPorDia.values()).sort((a, b) => a.data.localeCompare(b.data));
+}
+
+/**
  * Agrega a telemetria bruta em um resumo diario persistido no Firestore (Downsampling).
  * Garante que 1 ano inteiro de operacao ocupe apenas 365 pequenos documentos.
  */
@@ -127,32 +192,31 @@ export function observarHistoricoDiario(
 }
 
 /**
- * Calcula os indicadores comportamentais e a Linha de Base (Baseline).
- * Nos primeiros 30 dias: modo aprendizado.
- * Apos 30 dias: compara o consumo atual com a media aprendida.
+ * Calcula os indicadores comportamentais e a Linha de Base (Baseline) exclusivamente
+ * a partir dos dias reais medidos pela central (unindo `consumo_diario` e `leituras`).
  */
 export function calcularStatusBaseline(
   historicoDiario: ConsumoDiario[],
   consumoHojeAgua: number,
-  consumoHojeEnergia: number
+  consumoHojeEnergia: number,
+  leituras: Leitura[] = []
 ): StatusBaseline {
   const META_DIAS = 30;
-  const diasValidos = historicoDiario.filter((d) => d.consumo_agua_litros > 0 || d.energia_kwh > 0);
-  const totalDias = Math.max(diasValidos.length, 1);
+  const consolidados = consolidarHistoricoDiario(historicoDiario, leituras);
+  const diasValidos = consolidados.filter((d) => d.consumo_agua_litros > 0 || d.energia_kwh > 0);
 
-  // Calcula medias historicas
+  // Calcula medias reais exclusivamente sobre os dias em que houve medicao
   const somaAgua = diasValidos.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0);
   const somaEnergia = diasValidos.reduce((acc, cur) => acc + cur.energia_kwh, 0);
 
-  // Valores padrao de referencia caso haja poucos dias (baseados em dados Procel/Sabesp)
-  const mediaAgua = diasValidos.length > 0 ? somaAgua / totalDias : 140.0;
-  const mediaEnergia = diasValidos.length > 0 ? somaEnergia / totalDias : 5.0;
+  const mediaAgua = diasValidos.length > 0 ? somaAgua / diasValidos.length : 0;
+  const mediaEnergia = diasValidos.length > 0 ? somaEnergia / diasValidos.length : 0;
 
   const diasContados = diasValidos.length;
   const calibrado = diasContados >= META_DIAS;
   const progresso = Math.min(Math.round((diasContados / META_DIAS) * 100), 100);
 
-  // Comparacao percentual do consumo de hoje contra a media
+  // Comparacao percentual do consumo de hoje contra a media real aprendida
   const diffAguaPercent = mediaAgua > 0 ? Math.round(((consumoHojeAgua - mediaAgua) / mediaAgua) * 100) : 0;
   const diffEnergiaPercent = mediaEnergia > 0 ? Math.round(((consumoHojeEnergia - mediaEnergia) / mediaEnergia) * 100) : 0;
 

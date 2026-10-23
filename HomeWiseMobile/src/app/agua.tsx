@@ -88,7 +88,8 @@ export default function AguaScreen() {
   const statusBaseline = calcularStatusBaseline(
     historicoDiario,
     aguaHojeNum,
-    energiaHojeNum
+    energiaHojeNum,
+    leiturasParaCalculo
   );
 
   // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)

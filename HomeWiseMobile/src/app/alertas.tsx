@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   observarUltimaLeitura,
+  observarHistorico,
   centralEstaOnline,
   leituraEhDeHoje,
   Leitura
@@ -29,6 +30,7 @@ export default function AlertasScreen() {
   const router = useRouter();
   const { dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
   const [agoraMs, setAgoraMs] = useState(() => Date.now());
 
@@ -45,12 +47,17 @@ export default function AlertasScreen() {
       setAgoraMs(Date.now());
     }, dispositivoId);
 
+    const unsubHistorico = observarHistorico((dados) => {
+      setHistorico(dados);
+    }, null, dispositivoId);
+
     const unsubDiario = observarHistoricoDiario((dados) => {
       setHistoricoDiario(dados);
     }, dispositivoId);
 
     return () => {
       unsub();
+      unsubHistorico();
       unsubDiario();
     };
   }, [dispositivoId]);
@@ -58,11 +65,13 @@ export default function AlertasScreen() {
   const temCentral = Boolean(dispositivoId && dispositivoId.trim());
   const online = temCentral && centralEstaOnline(leitura, agoraMs);
   const ehDeHoje = temCentral && leituraEhDeHoje(leitura, new Date(agoraMs));
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
 
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
     ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
-    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
+    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0,
+    leiturasParaCalculo
   );
 
   // Regras reais de anomalia baseadas nos sensores (apenas quando a central está transmitindo ao vivo)
