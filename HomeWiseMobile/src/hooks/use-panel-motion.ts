@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, useAnimatedValue } from 'react-native';
+import { AccessibilityInfo, Animated, Easing } from 'react-native';
 
 export function usePanelMotion() {
-  const offset = useAnimatedValue(240);
-  const buttonScale = useAnimatedValue(1);
+  const offset = useRef(new Animated.Value(240)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
   const reducedMotion = useRef(false);
   useEffect(() => {
     let active = true;
