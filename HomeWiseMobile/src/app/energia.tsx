@@ -14,7 +14,6 @@ import {
   observarUltimaLeitura,
   observarHistorico,
   centralEstaOnline,
-  leituraEhDeHoje,
   Leitura
 } from '@/services/leiturasService';
 import {
@@ -24,7 +23,11 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
+import {
+  montarBarrasPorPeriodo,
+  calcularConsumoPorPeriodo,
+  obterRotuloConsumoPorPeriodo
+} from '@/utils/grafico-periodos';
 
 export default function EnergiaScreen() {
   const router = useRouter();
@@ -63,17 +66,42 @@ export default function EnergiaScreen() {
     };
   }, [dispositivoId]);
 
+  const agoraData = new Date(agoraMs);
   const online = centralEstaOnline(leitura, agoraMs);
-  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
+
+  const aguaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  );
+  const energiaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  );
 
   const statusBaseline = calcularStatusBaseline(
     historicoDiario,
-    ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
-    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
+    aguaHojeNum,
+    energiaHojeNum
   );
 
+  // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
+  const rotuloConsumoPeriodo = obterRotuloConsumoPorPeriodo(periodo);
+  const consumoPeriodoKwh = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    periodo,
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  ).toFixed(2);
+
   // Dados reais (potência e tensão instantâneas zeram quando a central está desligada)
-  const energiaHoje = ehDeHoje && leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
   const potenciaKw = online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
   const potenciaW = online && leitura ? leitura.potencia_w.toFixed(0) : '0';
   const tensaoV = online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
@@ -82,7 +110,7 @@ export default function EnergiaScreen() {
   // Calcula medias reais do historico
   const mediaDiaria = statusBaseline.mediaEnergiaKwhDia.toFixed(2);
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w');
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
@@ -120,9 +148,9 @@ export default function EnergiaScreen() {
         <View style={styles.cardEnergiaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="flash" size={18} color="#86efac" />
-            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
+            <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
           </View>
-          <Text style={styles.valorConsumo}>{energiaHoje} <Text style={styles.unidade}>kWh</Text></Text>
+          <Text style={styles.valorConsumo}>{consumoPeriodoKwh} <Text style={styles.unidade}>kWh</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Potência instantânea</Text>

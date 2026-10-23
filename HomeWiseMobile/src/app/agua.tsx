@@ -14,7 +14,6 @@ import {
   observarUltimaLeitura,
   observarHistorico,
   centralEstaOnline,
-  leituraEhDeHoje,
   Leitura
 } from '@/services/leiturasService';
 import {
@@ -24,7 +23,11 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
+import {
+  montarBarrasPorPeriodo,
+  calcularConsumoPorPeriodo,
+  obterRotuloConsumoPorPeriodo
+} from '@/utils/grafico-periodos';
 
 export default function AguaScreen() {
   const router = useRouter();
@@ -63,24 +66,48 @@ export default function AguaScreen() {
     };
   }, [dispositivoId]);
 
+  const agoraData = new Date(agoraMs);
   const online = centralEstaOnline(leitura, agoraMs);
-  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
+
+  const aguaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  );
+  const energiaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  );
 
   const statusBaseline = calcularStatusBaseline(
     historicoDiario,
-    ehDeHoje && leitura ? Number(leitura.consumo_agua_litros) : 0,
-    ehDeHoje && leitura ? Number(leitura.energia_kwh) : 0
+    aguaHojeNum,
+    energiaHojeNum
   );
 
-  // Dados reais do sensor YF-S201 (vazão instantânea zera quando a central está desligada)
-  const litrosHoje = ehDeHoje && leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
+  // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
+  const rotuloConsumoPeriodo = obterRotuloConsumoPorPeriodo(periodo);
+  const consumoPeriodoLitros = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    periodo,
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  ).toFixed(1);
+
   const vazaoLMin = online && leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
   const previsaoMesLitros = (statusBaseline.mediaAguaLitrosDia * 30).toFixed(0);
 
   // Calcula medias reais do historico
   const mediaDiariaLitros = statusBaseline.mediaAguaLitrosDia.toFixed(1);
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min');
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
@@ -118,9 +145,9 @@ export default function AguaScreen() {
         <View style={styles.cardAguaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="water" size={18} color="#38bdf8" />
-            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
+            <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
           </View>
-          <Text style={styles.valorConsumo}>{litrosHoje} <Text style={styles.unidade}>L</Text></Text>
+          <Text style={styles.valorConsumo}>{consumoPeriodoLitros} <Text style={styles.unidade}>L</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Vazão instantânea</Text>

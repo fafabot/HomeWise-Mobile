@@ -4,8 +4,6 @@ import {
   setDoc,
   query,
   where,
-  orderBy,
-  limit,
   onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -50,9 +48,10 @@ function obterDataFormatada(dataObj: Date = new Date()): string {
  * Garante que 1 ano inteiro de operacao ocupe apenas 365 pequenos documentos.
  */
 export async function sincronizarConsumoDiario(leitura: Leitura): Promise<void> {
-  if (!leitura || !leitura.dispositivo_id) return;
+  if (!leitura || !leitura.dispositivo_id || !leitura.criado_em) return;
+  const dataReferencia = new Date(leitura.criado_em);
+  if (!Number.isFinite(dataReferencia.getTime()) || dataReferencia.getTime() <= 0) return;
 
-  const dataReferencia = leitura.criado_em ? new Date(leitura.criado_em) : new Date();
   const dataStr = obterDataFormatada(dataReferencia);
   const docId = `${leitura.dispositivo_id}_${dataStr}`;
   const docRef = doc(db, 'consumo_diario', docId);
@@ -78,11 +77,12 @@ export async function sincronizarConsumoDiario(leitura: Leitura): Promise<void> 
 
 /**
  * Escuta os registros diarios agregados para alimentar graficos e linha de base.
+ * Filtra apenas por dispositivo_id (indice simples nativo do Firestore) e ordena por data em memoria.
  */
 export function observarHistoricoDiario(
   callback: (historico: ConsumoDiario[]) => void,
   dispositivoId: string,
-  limiteDias = 31
+  limiteDias = 366
 ) {
   if (!dispositivoId || !dispositivoId.trim()) {
     callback([]);
@@ -91,9 +91,7 @@ export function observarHistoricoDiario(
 
   const q = query(
     collection(db, 'consumo_diario'),
-    where('dispositivo_id', '==', dispositivoId),
-    orderBy('data', 'asc'),
-    limit(limiteDias)
+    where('dispositivo_id', '==', dispositivoId)
   );
 
   return onSnapshot(
@@ -105,7 +103,7 @@ export function observarHistoricoDiario(
         lista.push({
           id: docSnap.id,
           dispositivo_id: d.dispositivo_id,
-          data: d.data,
+          data: d.data || '',
           consumo_agua_litros: Number(d.consumo_agua_litros || 0),
           energia_kwh: Number(d.energia_kwh || 0),
           pico_potencia_w: Number(d.pico_potencia_w || 0),
@@ -115,7 +113,11 @@ export function observarHistoricoDiario(
           atualizado_em: d.atualizado_em?.toDate ? d.atualizado_em.toDate() : new Date()
         });
       });
-      callback(lista);
+      lista.sort((a, b) => a.data.localeCompare(b.data));
+      const cortada = limiteDias > 0 && lista.length > limiteDias
+        ? lista.slice(lista.length - limiteDias)
+        : lista;
+      callback(cortada);
     },
     (err) => {
       console.warn('[Baseline] Erro ao observar historico diario:', err.message);

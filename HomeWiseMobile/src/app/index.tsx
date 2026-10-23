@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
   observarUltimaLeitura,
+  observarHistorico,
   centralEstaOnline,
   leituraEhDeHoje,
   Leitura
@@ -23,6 +24,7 @@ import {
   ConsumoDiario,
   StatusBaseline
 } from '@/services/baselineService';
+import { calcularConsumoPorPeriodo } from '@/utils/grafico-periodos';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -34,6 +36,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
+  const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
   const [agoraMs, setAgoraMs] = useState(() => Date.now());
 
@@ -49,6 +52,10 @@ export default function HomeScreen() {
       setAgoraMs(Date.now());
     }, dispositivoId);
 
+    const unsubHistorico = observarHistorico((dados) => {
+      setHistorico(dados);
+    }, null, dispositivoId);
+
     // Escuta os resumos diarios agregados para calculo da linha de base
     const unsubDiario = observarHistoricoDiario((dados) => {
       setHistoricoDiario(dados);
@@ -56,39 +63,65 @@ export default function HomeScreen() {
 
     return () => {
       unsubLeitura();
+      unsubHistorico();
       unsubDiario();
     };
   }, [dispositivoId]);
 
+  const agoraData = new Date(agoraMs);
   const online = centralEstaOnline(leitura, agoraMs);
-  const ehDeHoje = leituraEhDeHoje(leitura, new Date(agoraMs));
+  const ehDeHoje = leituraEhDeHoje(leitura, agoraData);
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
 
-  // Calculos dinamicos a partir das leituras reais do ESP
-  const aguaHoje = leitura && ehDeHoje ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
-  const energiaHoje = leitura && ehDeHoje ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
+  // Consumo real do dia de hoje e acumulado real do mes atual (sem multiplicar leituras antigas)
+  const aguaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  );
+  const energiaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  );
+  const aguaMesNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'mes',
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  );
+  const energiaMesNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'mes',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  );
+
+  const aguaHoje = aguaHojeNum.toFixed(1);
+  const energiaHoje = energiaHojeNum.toFixed(2);
+  const aguaMes = aguaMesNum.toFixed(0);
+  const energiaMes = energiaMesNum.toFixed(1);
+
   const vazaoAtual = leitura && online ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
   const potenciaAtual = leitura && online ? Number(leitura.potencia_w).toFixed(0) : '0';
   const tensaoAtual = leitura && online ? Number(leitura.tensao_v).toFixed(0) : '0';
 
-  // Acumulado do mes a partir dos resumos diarios agregados (Downsampling)
-  const aguaMes = historicoDiario.length > 0
-    ? historicoDiario.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(0)
-    : (leitura && ehDeHoje ? (leitura.consumo_agua_litros * 25).toFixed(0) : '0');
-
-  const energiaMes = historicoDiario.length > 0
-    ? historicoDiario.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(1)
-    : (leitura && ehDeHoje ? (leitura.energia_kwh * 25).toFixed(1) : '0.0');
-
-  // Custo estimado do mes
-  const custoAgua = Number(aguaMes) * TARIFA_AGUA_POR_LITRO;
-  const custoEnergia = Number(energiaMes) * TARIFA_ENERGIA_KWH;
+  // Custo estimado do mes com base no consumo real do mes atual
+  const custoAgua = aguaMesNum * TARIFA_AGUA_POR_LITRO;
+  const custoEnergia = energiaMesNum * TARIFA_ENERGIA_KWH;
   const totalPrevisto = (custoAgua + custoEnergia).toFixed(2);
 
   // Inteligencia da Linha de Base (Baseline de 30 dias)
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
-    leitura && ehDeHoje ? Number(leitura.consumo_agua_litros) : 0,
-    leitura && ehDeHoje ? Number(leitura.energia_kwh) : 0
+    aguaHojeNum,
+    energiaHojeNum
   );
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
@@ -803,7 +836,7 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   trilhoProgresso: {
-    height: 8,
+    height: 6,
     backgroundColor: '#07131b',
     borderRadius: 4,
     overflow: 'hidden',
@@ -828,28 +861,27 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   itemMetricaBaseline: {
-    alignItems: 'center',
-    flex: 1
+    alignItems: 'center'
+  },
+  labelMetricaBaseline: {
+    color: '#64748b',
+    fontSize: 11,
+    marginBottom: 2
+  },
+  valorMetricaBaseline: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: 'bold'
   },
   divisorMetrica: {
     width: 1,
     height: 28,
     backgroundColor: '#1e3a4f'
   },
-  labelMetricaBaseline: {
-    color: '#94a3b8',
-    fontSize: 11,
-    marginBottom: 2
-  },
-  valorMetricaBaseline: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
   dicaBaseline: {
-    color: '#64748b',
-    fontSize: 11,
-    lineHeight: 16,
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 17,
     fontStyle: 'italic'
   }
 });
