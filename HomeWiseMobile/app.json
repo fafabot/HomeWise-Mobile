@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "HomeWiseMobile",
+    "name": "HomeWise",
     "slug": "HomeWiseMobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,16 +8,14 @@
     "scheme": "homewisemobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.homewise.mobile",
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.homewise.mobile"
     },
     "android": {
       "package": "com.homewise.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#07131b",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -42,9 +40,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#07131b",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 180
         }
       ],
       "expo-font",
