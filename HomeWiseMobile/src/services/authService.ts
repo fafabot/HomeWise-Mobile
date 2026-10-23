@@ -19,6 +19,8 @@ export interface DadosUsuario {
   email: string;
   dispositivo_id: string;
   telefone?: string;
+  foto_perfil?: string;
+  metas_consumo?: { agua?: number; energia?: number };
   residencia?: string;
   cep?: string;
   atualizado_em?: any;

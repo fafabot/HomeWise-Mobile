@@ -18,6 +18,7 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
 
 export default function EnergiaScreen() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function EnergiaScreen() {
 
     const unsubHistorico = observarHistorico((dados) => {
       setHistorico(dados);
-    }, 30, dispositivoId);
+    }, null, dispositivoId);
 
     const unsubDiario = observarHistoricoDiario((dados) => {
       setHistoricoDiario(dados);
@@ -61,21 +62,8 @@ export default function EnergiaScreen() {
   // Calcula medias reais do historico
   const mediaDiaria = statusBaseline.mediaEnergiaKwhDia.toFixed(2);
 
-  // Monta barras dinâmicas a partir das ultimas leituras do Firestore
-  const barras = historico.length >= 7
-    ? historico.slice(-7).map((item, idx) => ({
-        hora: new Date(item.criado_em!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        valor: Math.max(item.potencia_w / 200, 1) // escala para visualizacao
-      }))
-    : [
-        { hora: '00h', valor: 2 },
-        { hora: '04h', valor: 1.5 },
-        { hora: '08h', valor: 7 },
-        { hora: '12h', valor: 4.5 },
-        { hora: '16h', valor: 3.5 },
-        { hora: '20h', valor: 9.5 },
-        { hora: 'Agora', valor: leitura ? Math.max((leitura.potencia_w / 200), 1.5) : 5 }
-      ];
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w');
+  const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -102,7 +90,7 @@ export default function EnergiaScreen() {
               onPress={() => setPeriodo(item)}
             >
               <Text style={[styles.periodoTexto, periodo === item && styles.periodoTextoAtivo]}>
-                {item.charAt(0).toUpperCase() + item.slice(1)}
+                {item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -129,14 +117,15 @@ export default function EnergiaScreen() {
 
         {/* Grafico de Barras Dinâmico */}
         <View style={styles.cardGrafico}>
-          <Text style={styles.tituloGrafico}>Padrão de potência nas últimas leituras</Text>
+          <Text style={styles.tituloGrafico}>Potência média por período (W)</Text>
+          <Text style={styles.labelHora}>Períodos sem leituras ficam sem barra.</Text>
           <View style={styles.graficoContainer}>
             {barras.map((barra, index) => {
-              const alturaPorcentagem = Math.min((barra.valor / 10) * 120, 130);
+              const alturaPorcentagem = ((barra.valor ?? 0) / maiorValor) * 100;
               return (
-                <View key={index} style={styles.colunaBarra}>
-                  <View style={[styles.barraPreenchida, { height: Math.max(alturaPorcentagem, 12) }]} />
-                  <Text style={styles.labelHora}>{barra.hora}</Text>
+                <View key={index} style={styles.colunaBarra} accessibilityLabel={`${barra.label}: ${barra.valor === null ? 'sem leituras' : barra.valor.toFixed(1)}`}>
+                  <View style={[styles.barraPreenchida, { height: barra.valor === null ? 0 : Math.max(alturaPorcentagem, 4) }]} />
+                  <Text style={styles.labelHora}>{barra.label}</Text>
                 </View>
               );
             })}

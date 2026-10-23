@@ -33,6 +33,7 @@ function Navigation() {
           <Stack.Screen name="energia" />
           <Stack.Screen name="alertas" />
           <Stack.Screen name="perfil" />
+          <Stack.Screen name="metas" />
           <Stack.Screen name="editar-perfil" />
           <Stack.Screen name="alterar-senha" />
           <Stack.Screen name="plano-assinatura" />

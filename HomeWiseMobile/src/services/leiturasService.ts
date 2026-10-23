@@ -124,8 +124,9 @@ export function observarUltimaLeitura(
  */
 export function observarHistorico(
   callback: (leituras: Leitura[]) => void,
-  limiteRegistros = 30,
-  dispositivoId = ''
+  limiteRegistros: number | null = 30,
+  dispositivoId = '',
+  onError?: () => void
 ) {
   if (!dispositivoId || !dispositivoId.trim()) {
     callback([]);
@@ -140,7 +141,7 @@ export function observarHistorico(
     collection(db, "leituras"),
     where("dispositivo_id", "==", dispositivoId),
     orderBy("criado_em", "desc"),
-    limit(limiteRegistros)
+    ...(limiteRegistros === null ? [] : [limit(limiteRegistros)])
   );
 
   const unsubPrimaria = onSnapshot(
@@ -159,26 +160,30 @@ export function observarHistorico(
       );
 
       // 2. Fallback resiliente
+      const limiteFallback = limiteRegistros === null ? 500 : Math.max(limiteRegistros * 2, 50);
       const qFallback = query(
         collection(db, "leituras"),
         orderBy("criado_em", "desc"),
-        limit(Math.max(limiteRegistros * 2, 50))
+        limit(limiteFallback)
       );
 
       unsubFallback = onSnapshot(
         qFallback,
         (snapshot) => {
           if (cancelado) return;
-          const filtrados = snapshot.docs
+          const filtradosTodos = snapshot.docs
             .map(converterLeitura)
-            .filter((item) => item.dispositivo_id === dispositivoId)
-            .slice(0, limiteRegistros);
+            .filter((item) => item.dispositivo_id === dispositivoId);
+          const filtrados = limiteRegistros === null
+            ? filtradosTodos
+            : filtradosTodos.slice(0, limiteRegistros);
 
           filtrados.sort((a, b) => (a.criado_em?.getTime() ?? 0) - (b.criado_em?.getTime() ?? 0));
           callback(filtrados);
         },
         (errFallback) => {
           console.warn("[Firestore] Erro no fallback de histórico:", errFallback.message);
+          onError?.();
         }
       );
     }

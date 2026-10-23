@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { useAuth } from '@/contexts/AuthContext';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SCAN_BOX_SIZE = Math.min(SCREEN_WIDTH * 0.72, 280);
 
 function extrairCodigoCentral(dadosBrutos: string): string {

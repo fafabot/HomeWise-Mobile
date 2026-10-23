@@ -29,7 +29,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
   const [leitura, setLeitura] = useState<Leitura | null>(null);
-  const [historico, setHistorico] = useState<Leitura[]>([]);
+  const [, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
 
   useEffect(() => {
@@ -326,7 +326,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.rodapeCentral}>
-            <Text style={styles.textoRodapeCentral}>Dispositivo: {leitura?.dispositivo_id || "central_homewise_01"}</Text>
+            <Text style={styles.textoRodapeCentral}>Dispositivo: {leitura?.dispositivo_id || dispositivoId || "Não vinculado"}</Text>
             <Text style={styles.textoRodapeCentral}>Última atualização: {dataHoraUltimaLeitura}</Text>
           </View>
         </View>
