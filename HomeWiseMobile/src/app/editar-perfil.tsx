@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { atualizarPerfilUsuario } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
+import ProfilePhoto from '@/components/ProfilePhoto';
 
 export default function EditarPerfilScreen() {
   const router = useRouter();
@@ -28,15 +29,14 @@ export default function EditarPerfilScreen() {
   const [cep, setCep] = useState(perfil?.cep || '');
   const [salvando, setSalvando] = useState(false);
 
+  const { nome: nomeSalvo, dispositivo_id: centralSalva, telefone: telefoneSalvo, residencia: residenciaSalva, cep: cepSalvo } = perfil ?? {};
   useEffect(() => {
-    if (perfil) {
-      if (perfil.nome) setNome(perfil.nome);
-      if (perfil.dispositivo_id) setDispositivoId(perfil.dispositivo_id);
-      if (perfil.telefone) setTelefone(perfil.telefone);
-      if (perfil.residencia) setResidencia(perfil.residencia);
-      if (perfil.cep) setCep(perfil.cep);
-    }
-  }, [perfil]);
+    if (nomeSalvo) setNome(nomeSalvo);
+    if (centralSalva) setDispositivoId(centralSalva);
+    if (telefoneSalvo) setTelefone(telefoneSalvo);
+    if (residenciaSalva) setResidencia(residenciaSalva);
+    if (cepSalvo) setCep(cepSalvo);
+  }, [nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo]);
 
   async function handleSalvar() {
     if (!nome.trim()) {
@@ -83,14 +83,7 @@ export default function EditarPerfilScreen() {
 
         {/* Foto de Perfil */}
         <View style={styles.avatarContainer}>
-          <View style={styles.avatarGrande}>
-            <Text style={styles.avatarTexto}>
-              {nome ? nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'HW'}
-            </Text>
-          </View>
-          <View style={styles.botaoTrocarFoto}>
-            <Ionicons name="person" size={16} color="#ffffff" />
-          </View>
+          <ProfilePhoto nome={nome} size={86} disabled={salvando} />
           <Text style={styles.nomeHeader}>{nome || 'Morador'}</Text>
         </View>
 

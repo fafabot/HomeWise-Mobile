@@ -33,12 +33,12 @@ export function usePanelMotion() {
       Animated.spring(offset, { toValue: 0, damping: 16, stiffness: 190, mass: 0.7, useNativeDriver: true }),
     ]).start(() => resolve());
   });
-  const close = (onClosed: () => void) => {
+  const close = (onClosed: () => void, direction: 'up' | 'down' = 'down') => {
     if (reducedMotion.current) return onClosed();
-    Animated.timing(offset, { toValue: 240, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onClosed(); });
+    Animated.timing(offset, { toValue: direction === 'up' ? -240 : 240, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onClosed(); });
   };
   return {
-    style: { transform: [{ translateY: offset }], opacity: offset.interpolate({ inputRange: [0, 240], outputRange: [1, 0], extrapolate: 'clamp' }) },
+    style: { transform: [{ translateY: offset }], opacity: offset.interpolate({ inputRange: [-240, 0, 240], outputRange: [0, 1, 0], extrapolate: 'clamp' }) },
     buttonStyle: { transform: [{ scale: buttonScale }] },
     buttonDown, buttonUp, press, close,
   };

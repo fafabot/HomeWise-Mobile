@@ -18,7 +18,7 @@ export default function HomeWiseTabBar() {
   return (
     <View style={styles.tabContainer}>
       {tabs.map((tab) => {
-        const isActive = pathname === tab.route;
+        const isActive = pathname === tab.route || (tab.route === '/perfil' && pathname === '/metas');
         return (
           <TouchableOpacity
             key={tab.route}

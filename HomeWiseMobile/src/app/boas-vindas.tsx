@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
   function enter(mode: 'login' | 'cadastro') {
     if (transitioning) return;
     setTransitioning(true);
-    panel.close(() => selectEntry(mode));
+    panel.close(() => selectEntry(mode), 'up');
   }
   return (
     <SafeAreaView style={styles.container}>

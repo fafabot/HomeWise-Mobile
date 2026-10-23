@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
 
 export default function AguaScreen() {
   const router = useRouter();
@@ -46,21 +47,8 @@ export default function AguaScreen() {
     ? (historico.reduce((acc, c) => acc + c.consumo_agua_litros, 0) / historico.length).toFixed(1)
     : litrosHoje;
 
-  // Monta barras dinâmicas a partir das ultimas leituras do sensor
-  const barras = historico.length >= 7
-    ? historico.slice(-7).map((item) => ({
-        hora: new Date(item.criado_em!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        valor: Math.max(item.vazao_l_min * 10, 5) // escala visual
-      }))
-    : [
-        { hora: '00h', valor: 10 },
-        { hora: '04h', valor: 5 },
-        { hora: '08h', valor: 45 },
-        { hora: '12h', valor: 30 },
-        { hora: '16h', valor: 20 },
-        { hora: '20h', valor: 55 },
-        { hora: 'Agora', valor: leitura ? Math.max(leitura.vazao_l_min * 10, 8) : 15 }
-      ];
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min');
+  const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,7 +75,7 @@ export default function AguaScreen() {
               onPress={() => setPeriodo(item)}
             >
               <Text style={[styles.periodoTexto, periodo === item && styles.periodoTextoAtivo]}>
-                {item.charAt(0).toUpperCase() + item.slice(1)}
+                {item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -114,14 +102,15 @@ export default function AguaScreen() {
 
         {/* Grafico de Barras Dinâmico */}
         <View style={styles.cardGrafico}>
-          <Text style={styles.tituloGrafico}>Atividade de fluxo de água nas últimas leituras</Text>
+          <Text style={styles.tituloGrafico}>Vazão média por período (L/min)</Text>
+          <Text style={styles.labelHora}>Períodos sem leituras ficam sem barra.</Text>
           <View style={styles.graficoContainer}>
             {barras.map((barra, index) => {
-              const alturaPorcentagem = Math.min((barra.valor / 70) * 120, 130);
+              const alturaPorcentagem = ((barra.valor ?? 0) / maiorValor) * 100;
               return (
-                <View key={index} style={styles.colunaBarra}>
-                  <View style={[styles.barraPreenchida, { height: Math.max(alturaPorcentagem, 12) }]} />
-                  <Text style={styles.labelHora}>{barra.hora}</Text>
+                <View key={index} style={styles.colunaBarra} accessibilityLabel={`${barra.label}: ${barra.valor === null ? 'sem leituras' : barra.valor.toFixed(1)}`}>
+                  <View style={[styles.barraPreenchida, { height: barra.valor === null ? 0 : Math.max(alturaPorcentagem, 4) }]} />
+                  <Text style={styles.labelHora}>{barra.label}</Text>
                 </View>
               );
             })}

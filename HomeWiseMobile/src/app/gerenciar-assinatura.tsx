@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { planos, type Plano } from '@/constants/planos';
@@ -14,7 +14,7 @@ export default function GerenciarAssinaturaScreen() {
       <Text style={s.eyebrow}>PLANOS HOMEWISE</Text>
       <Text style={s.title}>O plano certo para sua casa.</Text>
       <Text style={s.subtitle}>Planos flexíveis para diferentes necessidades. Economize mais, pague menos.</Text>
-      <View style={styles.current}><View style={s.icon}><Ionicons name="layers-outline" size={22} color="#76d7cd" /></View><View style={styles.currentText}><Text style={styles.currentLabel}>SUA ASSINATURA</Text><Text style={styles.currentName}>Sem plano contratado</Text></View></View>
+      <View style={styles.current}><View style={s.icon}><Ionicons name="layers-outline" size={22} color="#76d7cd" /></View><View style={styles.currentText}><Text style={styles.currentLabel}>SUA ASSINATURA</Text><Text style={styles.currentName}>{selecionado ? `HomeWise ${selecionado.nome}` : 'Sem plano contratado'}</Text></View></View>
       <View style={styles.list}>
         {planos.map(plano => (
           <View key={plano.id} style={[s.card, plano.id === 'plus' && s.featured]}>
@@ -28,16 +28,7 @@ export default function GerenciarAssinaturaScreen() {
           </View>
         ))}
       </View>
-      <View style={s.note}><Ionicons name="information-circle-outline" size={18} color="#8fa6b3" /><Text style={s.noteText}>Valores mensais. A escolha de um plano permite consultar seus detalhes e não realiza cobranças.</Text></View>
-      <Modal transparent animationType="fade" visible={!!selecionado} onRequestClose={() => setSelecionado(null)}>
-        <View style={styles.overlay}><View style={[s.card, styles.modal]} accessibilityViewIsModal>
-          <Text style={s.eyebrow}>DETALHES DO PLANO</Text>
-          <Text accessibilityRole="header" style={s.planName}>HomeWise {selecionado?.nome}</Text>
-          {selecionado && <PlanPrice value={selecionado.preco} />}
-          <Text style={s.description}>A contratação e a troca de planos ainda não estão disponíveis. Nenhuma alteração foi feita na sua assinatura.</Text>
-          <TouchableOpacity accessibilityRole="button" style={[s.primary, styles.close]} onPress={() => setSelecionado(null)}><Text style={s.primaryText}>Entendi</Text></TouchableOpacity>
-        </View></View>
-      </Modal>
+      <View style={s.note}><Ionicons name="information-circle-outline" size={18} color="#8fa6b3" /><Text style={s.noteText}>Valores mensais. O plano escolhido aparece em Sua assinatura. A seleção não realiza cobranças.</Text></View>
     </SubscriptionScreen>
   );
 }
@@ -48,7 +39,4 @@ const styles = StyleSheet.create({
   currentLabel: { fontSize: 9, color: '#85a9b8', fontWeight: '700', letterSpacing: 1.2, marginBottom: 6 },
   currentName: { color: '#e8f2f5', fontSize: 16, fontWeight: '600' },
   list: { gap: 20 },
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.75)' },
-  modal: { width: '100%', maxWidth: 420 },
-  close: { marginTop: 24 },
 });

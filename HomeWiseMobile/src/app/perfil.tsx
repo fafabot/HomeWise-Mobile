@@ -11,8 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { openBrowserAsync } from 'expo-web-browser';
 import { deslogarUsuario } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
+import ProfilePhoto from '@/components/ProfilePhoto';
 import { authErrorMessage } from '@/services/authErrors';
 
 export default function PerfilScreen() {
@@ -21,10 +23,10 @@ export default function PerfilScreen() {
   const [saindo, setSaindo] = useState(false);
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const [erroSaida, setErroSaida] = useState('');
+  const [erroSobre, setErroSobre] = useState('');
   const saidaEmAndamento = useRef(false);
   const nomeExibicao = perfil?.nome || usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
   const emailExibicao = usuario?.email || '';
-  const iniciais = nomeExibicao.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   async function handleSair() {
     if (saidaEmAndamento.current) return;
@@ -38,6 +40,15 @@ export default function PerfilScreen() {
     } finally {
       saidaEmAndamento.current = false;
       setSaindo(false);
+    }
+  }
+
+  async function abrirSobre() {
+    setErroSobre('');
+    try {
+      await openBrowserAsync('https://gbmatheuss.github.io/Homewise_/index.html');
+    } catch {
+      setErroSobre('Não foi possível abrir a página Sobre. Tente novamente.');
     }
   }
 
@@ -79,6 +90,18 @@ export default function PerfilScreen() {
       titulo: 'Configurações de alerta',
       icone: 'notifications-outline' as const,
       acao: () => router.push('/alertas')
+    },
+    {
+      id: 6,
+      titulo: 'Metas de Consumo',
+      icone: 'flag-outline' as const,
+      acao: () => router.push('/metas')
+    },
+    {
+      id: 7,
+      titulo: 'Sobre',
+      icone: 'information-circle-outline' as const,
+      acao: abrirSobre
     }
   ];
 
@@ -98,9 +121,7 @@ export default function PerfilScreen() {
 
         {/* Card do Usuario Conectado ao Firebase */}
         <View style={styles.cardPerfil}>
-          <View style={styles.avatarGrande}>
-            <Text style={styles.avatarTexto}>{iniciais}</Text>
-          </View>
+          <ProfilePhoto nome={nomeExibicao} />
           <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
           <Text style={styles.emailUsuario}>{emailExibicao}</Text>
 
@@ -140,6 +161,8 @@ export default function PerfilScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {!!erroSobre && <Text accessibilityRole="alert" style={styles.textoSair}>{erroSobre}</Text>}
 
         {/* Botao Sair da Conta com Firebase signOut */}
         <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => { setErroSaida(''); setConfirmandoSaida(true); }}>

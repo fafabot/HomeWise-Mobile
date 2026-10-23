@@ -70,13 +70,14 @@ export function observarUltimaLeitura(
  */
 export function observarHistorico(
   callback: (leituras: Leitura[]) => void,
-  limiteRegistros = 30,
-  dispositivoId = DEFAULT_DEVICE_ID
+  limiteRegistros: number | null = 30,
+  dispositivoId = DEFAULT_DEVICE_ID,
+  onError?: () => void
 ) {
   const q = query(
     collection(db, "leituras"),
     where("dispositivo_id", "==", dispositivoId),
-    limit(limiteRegistros)
+    ...(limiteRegistros === null ? [] : [limit(limiteRegistros)])
   );
 
   return onSnapshot(
@@ -103,6 +104,7 @@ export function observarHistorico(
     },
     (error) => {
       console.warn("[Firestore] Erro ao buscar historico:", error.message);
+      onError?.();
     }
   );
 }
