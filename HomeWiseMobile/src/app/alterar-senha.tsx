@@ -1,5 +1,5 @@
 import { showAlert } from '@/utils/alert';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { alterarSenhaUsuario } from '@/services/authService';
+import { C, alfa } from '@/constants/hw-tema';
+import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
 export default function AlterarSenhaScreen() {
   const router = useRouter();
@@ -24,8 +26,11 @@ export default function AlterarSenhaScreen() {
   const [mostrarSenhaAtual, setMostrarSenhaAtual] = useState(false);
   const [mostrarNovaSenha, setMostrarNovaSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  // O Enter do teclado (onSubmitEditing) não respeita o botão desabilitado: o ref impede envio duplicado
+  const enviando = useRef(false);
 
   async function handleSalvarSenha() {
+    if (enviando.current) return;
     if (!senhaAtual || !novaSenha || !confirmarSenha) {
       showAlert('Atenção', 'Preencha todos os campos.');
       return;
@@ -41,8 +46,10 @@ export default function AlterarSenhaScreen() {
       return;
     }
 
+    enviando.current = true;
     setCarregando(true);
     const resultado = await alterarSenhaUsuario(senhaAtual, novaSenha);
+    enviando.current = false;
     setCarregando(false);
 
     if (resultado.sucesso) {
@@ -54,206 +61,206 @@ export default function AlterarSenhaScreen() {
     }
   }
 
+
+  // Apenas indicação visual dos mesmos critérios validados em handleSalvarSenha
+  const criterios = [
+    { ok: novaSenha.length >= 6, texto: 'Mínimo de 6 caracteres' },
+    { ok: !!confirmarSenha && novaSenha === confirmarSenha, texto: 'Confirmação igual à nova senha' }
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.conteudo}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/perfil')}>
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Alterar Senha</Text>
-          <View style={{ width: 40 }} />
-        </View>
+          <CabecalhoTela titulo="Alterar Senha" onVoltar={() => router.push('/perfil')} />
 
-        {/* Card Informativo de Seguranca */}
-        <View style={styles.cardAviso}>
-          <Ionicons name="shield-checkmark" size={24} color="#38bdf8" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.avisoTitulo}>Proteção da sua conta</Text>
-            <Text style={styles.avisoDesc}>
-              A sua senha é criptografada e gerenciada com segurança pelo Firebase Authentication.
-            </Text>
-          </View>
-        </View>
-
-        {/* Formulario */}
-        <View style={styles.formCard}>
-          {/* Senha Atual */}
-          <View style={styles.inputGrupo}>
-            <Text style={styles.label}>Senha Atual</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                secureTextEntry={!mostrarSenhaAtual}
-                value={senhaAtual}
-                onChangeText={setSenhaAtual}
-                placeholder="Digite sua senha atual"
-                placeholderTextColor="#64748b"
-              />
-              <TouchableOpacity onPress={() => setMostrarSenhaAtual(!mostrarSenhaAtual)}>
-                <Ionicons
-                  name={mostrarSenhaAtual ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color="#64748b"
-                />
-              </TouchableOpacity>
+          {/* Card informativo de segurança */}
+          <View style={styles.cardAviso}>
+            <View style={styles.avisoIcone}>
+              <Ionicons name="shield-checkmark" size={22} color={C.marca} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.avisoTitulo}>Proteção da sua conta</Text>
+              <Text style={styles.avisoDesc}>
+                A sua senha é criptografada e gerenciada com segurança pelo Firebase Authentication.
+              </Text>
             </View>
           </View>
 
-          {/* Nova Senha */}
-          <View style={styles.inputGrupo}>
-            <Text style={styles.label}>Nova Senha</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                secureTextEntry={!mostrarNovaSenha}
-                value={novaSenha}
-                onChangeText={setNovaSenha}
-                placeholder="Mínimo de 6 caracteres"
-                placeholderTextColor="#64748b"
-              />
-              <TouchableOpacity onPress={() => setMostrarNovaSenha(!mostrarNovaSenha)}>
-                <Ionicons
-                  name={mostrarNovaSenha ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color="#64748b"
-                />
-              </TouchableOpacity>
+          {/* Formulário */}
+          <View style={styles.formCard}>
+            <CampoSenha
+              rotulo="Senha Atual"
+              valor={senhaAtual}
+              onChange={setSenhaAtual}
+              placeholder="Digite sua senha atual"
+              visivel={mostrarSenhaAtual}
+              tipo="atual"
+              onAlternar={() => setMostrarSenhaAtual(!mostrarSenhaAtual)}
+            />
+
+            <View style={styles.divisor} />
+
+            <CampoSenha
+              rotulo="Nova Senha"
+              valor={novaSenha}
+              onChange={setNovaSenha}
+              placeholder="Mínimo de 6 caracteres"
+              visivel={mostrarNovaSenha}
+              tipo="nova"
+              onAlternar={() => setMostrarNovaSenha(!mostrarNovaSenha)}
+            />
+
+            <CampoSenha
+              rotulo="Confirmar Nova Senha"
+              valor={confirmarSenha}
+              onChange={setConfirmarSenha}
+              placeholder="Repita a nova senha"
+              onEnviar={() => void handleSalvarSenha()}
+              visivel={mostrarNovaSenha}
+              tipo="nova"
+            />
+
+            <View style={styles.criterios} accessibilityLiveRegion="polite">
+              {criterios.map((criterio) => (
+                <View key={criterio.texto} style={styles.criterio} accessible accessibilityLabel={`${criterio.texto}: ${criterio.ok ? 'atendido' : 'pendente'}`}>
+                  <Ionicons name={criterio.ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={criterio.ok ? C.ok : C.textoTer} />
+                  <Text style={[styles.criterioTexto, criterio.ok && { color: C.texto }]}>{criterio.texto}</Text>
+                </View>
+              ))}
             </View>
+
+            <TouchableOpacity
+              style={[styles.botaoSalvar, carregando && { opacity: 0.7 }]}
+              activeOpacity={0.85}
+              onPress={handleSalvarSenha}
+              disabled={carregando}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: carregando, busy: carregando }}
+            >
+              {carregando ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="key-outline" size={18} color="#ffffff" />
+                  <Text style={styles.textoBotaoSalvar}>Atualizar Senha</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
 
-          {/* Confirmar Nova Senha */}
-          <View style={styles.inputGrupo}>
-            <Text style={styles.label}>Confirmar Nova Senha</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                secureTextEntry={!mostrarNovaSenha}
-                value={confirmarSenha}
-                onChangeText={setConfirmarSenha}
-                placeholder="Repita a nova senha"
-                placeholderTextColor="#64748b"
-              />
-            </View>
-          </View>
-
-          {/* Botao de Salvar Senha */}
-          <TouchableOpacity
-            style={styles.botaoSalvar}
-            activeOpacity={0.8}
-            onPress={handleSalvarSenha}
-            disabled={carregando}
-          >
-            {carregando ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.textoBotaoSalvar}>Atualizar Senha</Text>
-            )}
-          </TouchableOpacity>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+/** Campo de senha com destaque de foco e botão para mostrar/ocultar. */
+function CampoSenha({ rotulo, valor, onChange, placeholder, visivel, onAlternar, tipo, onEnviar }: {
+  rotulo: string;
+  valor: string;
+  onChange: (texto: string) => void;
+  placeholder: string;
+  visivel: boolean;
+  onAlternar?: () => void;
+  tipo: 'atual' | 'nova';
+  onEnviar?: () => void;
+}) {
+  const [emFoco, setEmFoco] = useState(false);
+  return (
+    <View style={styles.inputGrupo}>
+      <Text style={styles.label}>{rotulo}</Text>
+      <View style={[styles.inputContainer, emFoco && styles.inputFoco]}>
+        <Ionicons name="lock-closed-outline" size={17} color={emFoco ? C.marca : C.textoTer} />
+        <TextInput
+          style={styles.input}
+          secureTextEntry={!visivel}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete={tipo === 'atual' ? 'current-password' : 'new-password'}
+          textContentType={tipo === 'atual' ? 'password' : 'newPassword'}
+          returnKeyType={onEnviar ? 'go' : 'next'}
+          onSubmitEditing={onEnviar}
+          value={valor}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={C.textoTer}
+          accessibilityLabel={rotulo}
+          onFocus={() => setEmFoco(true)}
+          onBlur={() => setEmFoco(false)}
+        />
+        {onAlternar && (
+          <TouchableOpacity
+            onPress={onAlternar}
+            style={styles.botaoOlho}
+            accessibilityRole="button"
+            accessibilityLabel={visivel ? `Ocultar ${rotulo.toLowerCase()}` : `Mostrar ${rotulo.toLowerCase()}`}
+          >
+            <Ionicons name={visivel ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.textoSec} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#07131b'
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  botaoVoltar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  tituloHeader: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
-  },
+  container: { flex: 1, backgroundColor: C.fundo },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  conteudo: { width: '100%', maxWidth: 520, alignSelf: 'center' },
   cardAviso: {
-    backgroundColor: '#0a2333',
-    borderRadius: 14,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 20,
+    gap: 14,
+    backgroundColor: alfa(C.marca, 0.07),
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#144c66'
-  },
-  avisoTitulo: {
-    color: '#38bdf8',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  avisoDesc: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 16
-  },
-  formCard: {
-    backgroundColor: '#0b1d28',
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#133547'
-  },
-  inputGrupo: {
+    borderColor: alfa(C.marca, 0.28),
     marginBottom: 16
   },
-  label: {
-    color: '#94a3b8',
-    fontSize: 13,
-    marginBottom: 8,
-    fontWeight: '500'
+  avisoIcone: { width: 44, height: 44, borderRadius: 14, backgroundColor: alfa(C.marca, 0.14), alignItems: 'center', justifyContent: 'center' },
+  avisoTitulo: { color: C.texto, fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  avisoDesc: { color: C.textoSec, fontSize: 12.5, lineHeight: 18 },
+  formCard: {
+    backgroundColor: C.superficie,
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.borda,
+    gap: 16
   },
+  divisor: { height: 1, backgroundColor: C.bordaSuave },
+  inputGrupo: { gap: 7 },
+  label: { fontSize: 13, fontWeight: '600', color: C.textoSec },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#07131b',
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    gap: 10,
+    backgroundColor: C.fundo,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: C.borda,
+    paddingLeft: 14,
+    paddingRight: 6
   },
-  input: {
-    flex: 1,
-    color: '#ffffff',
-    paddingVertical: 12,
-    fontSize: 15
-  },
+  inputFoco: { borderColor: C.marca, backgroundColor: C.fundoProfundo },
+  input: { flex: 1, height: 50, color: C.texto, fontSize: 15 },
+  botaoOlho: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  criterios: { gap: 8, paddingHorizontal: 2 },
+  criterio: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  criterioTexto: { color: C.textoTer, fontSize: 12.5 },
   botaoSalvar: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
-    paddingVertical: 14,
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: C.marcaForte,
+    minHeight: 54,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 4
   },
-  textoBotaoSalvar: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold'
-  }
+  textoBotaoSalvar: { color: '#ffffff', fontSize: 15, fontWeight: '700' }
 });

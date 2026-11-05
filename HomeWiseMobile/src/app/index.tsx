@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  View,
-  ScrollView,
   TouchableOpacity,
-  StatusBar,
-  Image
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +21,7 @@ import {
 } from '@/services/leiturasService';
 import { disponibilidade, exibivel, useLeiturasCentral } from '@/hooks/use-leituras-central';
 import AvisoFalhaLeituras, { SeloDesatualizado } from '@/components/AvisoFalhaLeituras';
+import { C, LARGURA_MAXIMA, NUMEROS } from '@/constants/hw-tema';
 import {
   calcularStatusBaseline,
   StatusBaseline
@@ -118,466 +123,613 @@ export default function HomeScreen() {
         : new Date(leitura.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))
     : '--:--:--';
 
+  // ----- Apenas apresentação: nenhuma regra de cálculo ou de estado abaixo -----
+  const temAlerta = possivelVazamento || consumoElevado;
+  const tom: Tom = !dispositivoId || estadoLeitura === 'carregando'
+    ? 'neutro'
+    : estadoLeitura === 'erro'
+    ? 'erro'
+    : temAlerta
+    ? 'alerta'
+    : !online
+    ? 'offline'
+    : 'ok';
+  const cores = TONS[tom];
+
+  const textoSituacao = !dispositivoId
+    ? "Aguardando vinculação da central"
+    : estadoLeitura === 'carregando'
+    ? "Carregando medições da central..."
+    : estadoLeitura === 'erro'
+    ? "Não foi possível verificar a central"
+    : !online
+    ? "Central desligada / sem comunicação"
+    : possivelVazamento
+    ? "Atenção: Vazão contínua detectada"
+    : consumoElevado
+    ? "Alerta: Potência acima da média"
+    : "Consumo dentro do esperado";
+
+  const iconeSituacao: keyof typeof Ionicons.glyphMap = temAlerta ? "alert"
+    : estadoLeitura === 'carregando' && dispositivoId ? "sync-outline"
+    : estadoLeitura === 'erro' ? "alert-circle-outline"
+    : !online ? "cloud-offline-outline" : "checkmark";
+
+  const textoBadge = online ? "AO VIVO"
+    : !dispositivoId ? "SEM CENTRAL"
+    : estadoLeitura === 'carregando' ? "CONECTANDO"
+    : estadoLeitura === 'erro' ? "INDISPONÍVEL"
+    : leitura ? "DESLIGADA" : "AGUARDANDO ESP";
+
+  const dataExtenso = agoraData.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const nome = perfil?.nome || user?.displayName || 'Morador';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Topo / Header com Logo HomeWise */}
-        <View style={styles.header}>
-          <View style={styles.perfilContainer}>
-            <Image
-              source={require('@/assets/images/logo homewise.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.saudacao}>Olá, {perfil?.nome || user?.displayName || 'Morador'}!</Text>
-              <Text style={styles.subSaudacao}>
-                {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
-            <Ionicons name="notifications-outline" size={20} color="#ffffff" />
-            {(possivelVazamento || consumoElevado) && <View style={styles.badgeNotif} />}
-          </TouchableOpacity>
-        </View>
+        <View style={styles.conteudo}>
 
-        {/* Banner de Vinculacao de Central quando nao vinculada */}
-        {!dispositivoId && (
-          <View style={styles.cardSemCentral}>
-            <View style={styles.topoCardSemCentral}>
-              <View style={styles.iconeSemCentral}>
-                <Ionicons name="hardware-chip-outline" size={24} color="#f59e0b" />
-              </View>
-              <View style={styles.conteudoSemCentral}>
-                <Text style={styles.tituloSemCentral}>Vincule sua Central HomeWise</Text>
-                <Text style={styles.descricaoSemCentral}>
-                  Escaneie o QR Code ou informe o código da sua central para acompanhar suas medições.
+          {/* Cabeçalho */}
+          <View style={styles.header}>
+            <View style={styles.perfilContainer}>
+              <Image
+                source={require('@/assets/images/logo homewise.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+                accessibilityLabel="Logo HomeWise"
+              />
+              <View style={{ flexShrink: 1 }}>
+                <Text style={styles.data}>{dataExtenso}</Text>
+                <Text style={styles.saudacao} numberOfLines={1}>Olá, {nome}!</Text>
+                <Text style={styles.subSaudacao} numberOfLines={1}>
+                  {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
                 </Text>
               </View>
             </View>
-
-            <View style={styles.botoesAcaoSemCentral}>
-              <TouchableOpacity
-                style={styles.botaoScanPrincipal}
-                activeOpacity={0.8}
-                onPress={() => router.push('/escanear-qrcode' as any)}
-              >
-                <Ionicons name="qr-code-outline" size={16} color="#07131b" style={{ marginRight: 6 }} />
-                <Text style={styles.textoBotaoScanPrincipal}>Escanear QR Code</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.botaoDigitarSecundario}
-                activeOpacity={0.7}
-                onPress={() => router.push('/editar-perfil')}
-              >
-                <Text style={styles.textoBotaoDigitarSecundario}>Digitar Código</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
-        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
-
-        {/* Linha dos Cards de Agua e Energia com Dados Reais */}
-        <View style={styles.rowCards}>
-          {/* Card Agua */}
-          <TouchableOpacity style={[styles.miniCard, styles.cardAgua]} activeOpacity={0.8} onPress={() => router.push('/agua')}>
-            <View style={styles.miniCardTopo}>
-              <Ionicons name="water" size={16} color="#38bdf8" />
-              <Text style={styles.miniCardLabel}>Água hoje</Text>
-            </View>
-            <Text style={styles.miniCardValor}>{aguaHoje} L</Text>
-            <Text style={styles.miniCardSub}>{aguaMes} L este mês</Text>
-            <SeloDesatualizado visivel={totaisDesatualizados} />
-          </TouchableOpacity>
-
-          {/* Card Energia */}
-          <TouchableOpacity style={[styles.miniCard, styles.cardEnergia]} activeOpacity={0.8} onPress={() => router.push('/energia')}>
-            <View style={styles.miniCardTopo}>
-              <Ionicons name="flash" size={16} color="#4ade80" />
-              <Text style={styles.miniCardLabel}>Energia hoje</Text>
-            </View>
-            <Text style={styles.miniCardValor}>{energiaHoje} kWh</Text>
-            <Text style={styles.miniCardSub}>{energiaMes} kWh este mês</Text>
-            <SeloDesatualizado visivel={totaisDesatualizados} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Card Total Previsto (Calculo em Reais) */}
-        <View style={styles.cardTotalPrevisto}>
-          <View>
-            <Text style={styles.totalPrevistoLabel}>Total previsto da conta</Text>
-            <Text style={styles.totalPrevistoValor}>R$ {totalPrevisto.replace('.', ',')}</Text>
-            <View style={styles.linhaVariacao}>
-              <Ionicons name="calculator-outline" size={14} color="#22c55e" />
-              <Text style={styles.totalPrevistoSub}> Baseado na tarifa de consumo atual</Text>
-            </View>
-            <SeloDesatualizado visivel={totaisDesatualizados} />
-          </View>
-          <View style={styles.circuloCifrao}>
-            <Ionicons name="cash-outline" size={24} color="#ffffff" />
-          </View>
-        </View>
-
-        {/* Card Situacao Geral */}
-        <View style={[styles.cardSituacao, (possivelVazamento || consumoElevado || !online) && styles.cardSituacaoAlerta]}>
-          <View style={styles.situacaoEsquerda}>
-            <View style={[styles.checkIconBox, (possivelVazamento || consumoElevado || !online) && styles.checkIconBoxAlerta]}>
-              <Ionicons
-                name={
-                  possivelVazamento || consumoElevado ? "alert"
-                    : estadoLeitura === 'carregando' && dispositivoId ? "sync-outline"
-                    : estadoLeitura === 'erro' ? "alert-circle-outline"
-                    : !online ? "cloud-offline-outline" : "checkmark"
-                }
-                size={18}
-                color={possivelVazamento || consumoElevado || !online ? "#ffffff" : "#07131b"}
-              />
-            </View>
-            <View style={{ flexShrink: 1 }}>
-              <Text style={styles.situacaoLabel}>Situação do sistema</Text>
-              <Text style={styles.situacaoStatus}>
-                {!dispositivoId
-                  ? "Aguardando vinculação da central"
-                  : estadoLeitura === 'carregando'
-                  ? "Carregando medições da central..."
-                  : estadoLeitura === 'erro'
-                  ? "Não foi possível verificar a central"
-                  : !online
-                  ? "Central desligada / sem comunicação"
-                  : possivelVazamento
-                  ? "Atenção: Vazão contínua detectada"
-                  : consumoElevado
-                  ? "Alerta: Potência acima da média"
-                  : "Consumo dentro do esperado"}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Card de Inteligencia e Linha de Base Adaptativa */}
-        <View style={styles.cardBaseline}>
-          <View style={styles.baselineTopo}>
-            <View style={styles.baselineIconeBox}>
-              <Ionicons
-                name={statusBaseline.fase === 'calibrado' ? 'sparkles' : 'hourglass-outline'}
-                size={18}
-                color="#38bdf8"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.baselineEtiqueta}>INTELIGÊNCIA HOMETRACK • LINHA DE BASE</Text>
-              <Text style={styles.baselineTitulo}>
-                {totaisDisponiveis
-                  ? statusBaseline.mensagem
-                  : dispTotais === 'indisponivel'
-                  ? 'Histórico indisponível no momento.'
-                  : 'Carregando seu histórico...'}
-              </Text>
-            </View>
-            {totaisDisponiveis && <View style={[
-              styles.badgeFase,
-              statusBaseline.fase === 'calibrado' ? styles.badgeFaseCalibrado : styles.badgeFaseAprendizado
-            ]}>
-              <Text style={[
-                styles.badgeFaseTexto,
-                statusBaseline.fase === 'calibrado' ? { color: '#22c55e' } : { color: '#38bdf8' }
-              ]}>
-                {statusBaseline.fase === 'calibrado' ? 'CALIBRADO' : `${statusBaseline.progressoPorcentagem}%`}
-              </Text>
-            </View>}
+            <TouchableOpacity
+              style={styles.botaoSino}
+              activeOpacity={0.7}
+              onPress={() => router.push('/alertas')}
+              accessibilityRole="button"
+              accessibilityLabel={temAlerta ? 'Alertas: há alertas ativos' : 'Alertas'}
+            >
+              <Ionicons name="notifications-outline" size={20} color={C.texto} />
+              {temAlerta && <View style={styles.badgeNotif} />}
+            </TouchableOpacity>
           </View>
 
-          {/* Barra de Progresso ou Metricas (somente com o histórico carregado) */}
-          {!totaisDisponiveis ? null : statusBaseline.fase === 'aprendizado' ? (
-            <View style={styles.barraProgressoContainer}>
-              <View style={styles.trilhoProgresso}>
-                <View style={[styles.preenchimentoProgresso, { width: `${Math.max(statusBaseline.progressoPorcentagem, 8)}%` }]} />
+          {/* Banner de vinculação quando não há central */}
+          {!dispositivoId && (
+            <View style={styles.cardSemCentral}>
+              <View style={styles.topoCardSemCentral}>
+                <View style={styles.iconeSemCentral}>
+                  <Ionicons name="hardware-chip-outline" size={22} color={C.alerta} />
+                </View>
+                <View style={styles.conteudoSemCentral}>
+                  <Text style={styles.tituloSemCentral}>Vincule sua Central HomeWise</Text>
+                  <Text style={styles.descricaoSemCentral}>
+                    Escaneie o QR Code ou informe o código da sua central para acompanhar suas medições.
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.subProgresso}>
-                {statusBaseline.diasRegistrados} de {statusBaseline.metaDias} dias analisados • Calibrando rotina residencial
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.baselineMetricas}>
-              <View style={styles.itemMetricaBaseline}>
-                <Text style={styles.labelMetricaBaseline}>Média Água Aprendida</Text>
-                <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaAguaLitrosDia} L/dia</Text>
-              </View>
-              <View style={styles.divisorMetrica} />
-              <View style={styles.itemMetricaBaseline}>
-                <Text style={styles.labelMetricaBaseline}>Média Energia Aprendida</Text>
-                <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaEnergiaKwhDia} kWh/dia</Text>
+
+              <View style={styles.botoesAcaoSemCentral}>
+                <TouchableOpacity
+                  style={styles.botaoScanPrincipal}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/escanear-qrcode' as any)}
+                >
+                  <Ionicons name="qr-code-outline" size={16} color={C.fundo} style={{ marginRight: 6 }} />
+                  <Text style={styles.textoBotaoScanPrincipal}>Escanear QR Code</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.botaoDigitarSecundario}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/editar-perfil')}
+                >
+                  <Text style={styles.textoBotaoDigitarSecundario}>Digitar Código</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
-          {totaisDisponiveis && <Text style={styles.dicaBaseline}>{statusBaseline.dica}</Text>}
-          <SeloDesatualizado visivel={totaisDesatualizados} />
-        </View>
+          {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+          <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
 
-        {/* Sessao Alertas Ativos */}
-        <View style={styles.secaoHeader}>
-          <Text style={styles.secaoTitulo}>Alertas em tempo real</Text>
-          <TouchableOpacity onPress={() => router.push('/alertas')}>
-            <Text style={styles.secaoLink}>Ver todos</Text>
-          </TouchableOpacity>
-        </View>
+          {/* Painel principal: situação da casa + previsão da conta */}
+          <View style={[styles.painel, { borderColor: cores.borda }]}>
+            <View style={[styles.painelFaixa, { backgroundColor: cores.destaque }]} />
+            <View style={styles.painelTopo}>
+              <Text style={styles.etiqueta}>SITUAÇÃO DO SISTEMA</Text>
+              <View style={[styles.badgeLive, { backgroundColor: cores.fundoBadge }]}>
+                <PontoAoVivo ativo={online} cor={cores.destaque} />
+                <Text style={[styles.badgeLiveTexto, { color: cores.destaque }]}>{textoBadge}</Text>
+              </View>
+            </View>
 
-        {/* Card Dinâmico de Alerta */}
-        {possivelVazamento ? (
-          <TouchableOpacity style={styles.cardAlertaCritico} activeOpacity={0.8} onPress={() => router.push('/alertas')}>
-            <View style={styles.alertaIconeBox}>
-              <Ionicons name="warning" size={20} color="#f87171" />
+            <View style={styles.situacaoLinha} accessibilityLiveRegion="polite">
+              <View style={[styles.situacaoIcone, { backgroundColor: cores.fundoIcone }]}>
+                <Ionicons name={iconeSituacao} size={20} color={cores.destaque} />
+              </View>
+              <Text style={styles.situacaoStatus}>{textoSituacao}</Text>
             </View>
-            <View style={styles.alertaConteudo}>
-              <Text style={styles.alertaTitulo}>Possível vazamento ativo</Text>
-              <Text style={styles.alertaSub}>Vazão de {vazaoAtual} L/min identificada pelo sensor YF-S201</Text>
+
+            <View style={styles.painelDivisor} />
+
+            <View style={styles.contaLinha}>
+              <View style={{ flexShrink: 1 }}>
+                <Text style={styles.contaLabel}>Total previsto da conta</Text>
+                <Text style={styles.contaValor}>
+                  <Text style={styles.contaMoeda}>R$ </Text>{totalPrevisto.replace('.', ',')}
+                </Text>
+                <View style={styles.linhaVariacao}>
+                  <Ionicons name="calculator-outline" size={13} color={C.textoTer} />
+                  <Text style={styles.contaSub}>Baseado na tarifa de consumo atual</Text>
+                </View>
+                <SeloDesatualizado visivel={totaisDesatualizados} />
+              </View>
+              <View style={styles.circuloCifrao}>
+                <Ionicons name="cash-outline" size={22} color={C.ok} />
+              </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#f87171" />
-          </TouchableOpacity>
-        ) : statusDesconhecido ? (
-          <View style={styles.cardSemAlerta}>
-            <Ionicons name={estadoLeitura === 'erro' ? 'alert-circle-outline' : 'sync-outline'} size={20} color="#94a3b8" />
-            <Text style={styles.textoSemAlerta}>
-              {estadoLeitura === 'erro'
-                ? 'Não é possível verificar alertas sem as medições da central.'
-                : 'Verificando alertas...'}
-            </Text>
           </View>
-        ) : (
-          <View style={styles.cardSemAlerta}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#22c55e" />
-            <Text style={styles.textoSemAlerta}>Nenhum vazamento ou pico detectado no momento.</Text>
-          </View>
-        )}
 
-        {/* Card Medição Instantânea em Tempo Real (Direto do ESP8266) */}
-        <View style={styles.cardTempoReal}>
-          <View style={styles.tempoRealHeader}>
-            <View style={styles.linhaCentral}>
-              <Ionicons name="hardware-chip-outline" size={16} color="#64748b" />
-              <Text style={styles.tempoRealTitulo}>CENTRAL ESP8266</Text>
-            </View>
-            <View style={[styles.badgeLive, !online && styles.badgeOffline]}>
-              <View style={[styles.pontoLive, !online && styles.pontoOffline]} />
-              <Text style={[styles.badgeLiveTexto, !online && styles.badgeOfflineTexto]}>
-                {online ? "AO VIVO"
-                  : !dispositivoId ? "SEM CENTRAL"
-                  : estadoLeitura === 'carregando' ? "CONECTANDO"
-                  : estadoLeitura === 'erro' ? "INDISPONÍVEL"
-                  : leitura ? "DESLIGADA" : "AGUARDANDO ESP"}
+          {/* Consumo de hoje */}
+          <Text style={styles.secaoTitulo}>Consumo de hoje</Text>
+          <View style={styles.rowCards}>
+            <CardConsumo
+              icone="water"
+              cor={C.agua}
+              rotulo="Água hoje"
+              valor={aguaHoje}
+              unidade="L"
+              mes={`${aguaMes} L este mês`}
+              desatualizado={totaisDesatualizados}
+              onPress={() => router.push('/agua')}
+            />
+            <CardConsumo
+              icone="flash"
+              cor={C.energia}
+              rotulo="Energia hoje"
+              valor={energiaHoje}
+              unidade="kWh"
+              mes={`${energiaMes} kWh este mês`}
+              desatualizado={totaisDesatualizados}
+              onPress={() => router.push('/energia')}
+            />
+          </View>
+
+          {/* Alertas ativos */}
+          <View style={styles.secaoHeader}>
+            <Text style={[styles.secaoTitulo, { marginBottom: 0 }]}>Alertas em tempo real</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/alertas')}
+              accessibilityRole="link"
+              hitSlop={8}
+              style={styles.secaoLinkBotao}
+            >
+              <Text style={styles.secaoLink}>Ver todos</Text>
+              <Ionicons name="chevron-forward" size={14} color={C.marca} />
+            </TouchableOpacity>
+          </View>
+
+          {possivelVazamento ? (
+            <TouchableOpacity
+              style={styles.cardAlertaCritico}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              onPress={() => router.push('/alertas')}
+            >
+              <View style={styles.alertaIconeBox}>
+                <Ionicons name="warning" size={20} color={C.perigo} />
+              </View>
+              <View style={styles.alertaConteudo}>
+                <Text style={styles.alertaTitulo}>Possível vazamento ativo</Text>
+                <Text style={styles.alertaSub}>Vazão de {vazaoAtual} L/min identificada pelo sensor YF-S201</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={C.perigo} />
+            </TouchableOpacity>
+          ) : statusDesconhecido ? (
+            <View style={styles.cardSemAlerta}>
+              <Ionicons name={estadoLeitura === 'erro' ? 'alert-circle-outline' : 'sync-outline'} size={20} color={C.textoSec} />
+              <Text style={styles.textoSemAlerta}>
+                {estadoLeitura === 'erro'
+                  ? 'Não é possível verificar alertas sem as medições da central.'
+                  : 'Verificando alertas...'}
               </Text>
             </View>
+          ) : (
+            <View style={styles.cardSemAlerta}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={C.ok} />
+              <Text style={styles.textoSemAlerta}>Nenhum vazamento ou pico detectado no momento.</Text>
+            </View>
+          )}
+
+          {/* Medição instantânea da central */}
+          <Text style={styles.secaoTitulo}>Agora na central</Text>
+          <View style={styles.cardTempoReal}>
+            <View style={styles.tempoRealHeader}>
+              <Ionicons name="hardware-chip-outline" size={15} color={C.textoTer} />
+              <Text style={styles.etiqueta}>CENTRAL ESP8266</Text>
+            </View>
+
+            <View style={styles.tempoRealValores}>
+              <Medicao icone="speedometer-outline" cor={C.agua} rotulo="Vazão Atual" valor={vazaoAtual} unidade="L/min" />
+              <Medicao icone="flash-outline" cor={C.energia} rotulo="Potência Ativa" valor={potenciaAtual} unidade="W" />
+              <Medicao icone="pulse-outline" cor={C.marca} rotulo="Tensão AC" valor={tensaoAtual} unidade="V" />
+            </View>
+
+            <View style={styles.rodapeCentral}>
+              <Text style={styles.textoRodapeCentral}>Dispositivo: {dispositivoId || "Não vinculado"}</Text>
+              <Text style={styles.textoRodapeCentral}>Última atualização: {dataHoraUltimaLeitura}</Text>
+            </View>
           </View>
 
-          <View style={styles.tempoRealValores}>
-            <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Vazão Atual</Text>
-              <Text style={styles.medicaoValor}>{vazaoAtual} <Text style={styles.medicaoUnid}>L/min</Text></Text>
+          {/* Inteligência e linha de base adaptativa */}
+          <View style={styles.cardBaseline}>
+            <View style={styles.baselineTopo}>
+              <View style={styles.baselineIconeBox}>
+                <Ionicons
+                  name={statusBaseline.fase === 'calibrado' ? 'sparkles' : 'hourglass-outline'}
+                  size={18}
+                  color={C.agua}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.etiqueta, { color: C.agua, marginBottom: 3 }]}>INTELIGÊNCIA HOMETRACK • LINHA DE BASE</Text>
+                <Text style={styles.baselineTitulo}>
+                  {totaisDisponiveis
+                    ? statusBaseline.mensagem
+                    : dispTotais === 'indisponivel'
+                    ? 'Histórico indisponível no momento.'
+                    : 'Carregando seu histórico...'}
+                </Text>
+              </View>
+              {totaisDisponiveis && <View style={[
+                styles.badgeFase,
+                statusBaseline.fase === 'calibrado' ? styles.badgeFaseCalibrado : styles.badgeFaseAprendizado
+              ]}>
+                <Text style={[
+                  styles.badgeFaseTexto,
+                  { color: statusBaseline.fase === 'calibrado' ? C.ok : C.agua }
+                ]}>
+                  {statusBaseline.fase === 'calibrado' ? 'CALIBRADO' : `${statusBaseline.progressoPorcentagem}%`}
+                </Text>
+              </View>}
             </View>
-            <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Potência Ativa</Text>
-              <Text style={styles.medicaoValor}>{potenciaAtual} <Text style={styles.medicaoUnid}>W</Text></Text>
-            </View>
-            <View style={styles.itemMedicao}>
-              <Text style={styles.medicaoLabel}>Tensão AC</Text>
-              <Text style={styles.medicaoValor}>{tensaoAtual} <Text style={styles.medicaoUnid}>V</Text></Text>
-            </View>
+
+            {!totaisDisponiveis ? null : statusBaseline.fase === 'aprendizado' ? (
+              <View style={styles.barraProgressoContainer}>
+                <View
+                  style={styles.trilhoProgresso}
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{ min: 0, max: 100, now: statusBaseline.progressoPorcentagem }}
+                >
+                  <View style={[styles.preenchimentoProgresso, { width: `${Math.max(statusBaseline.progressoPorcentagem, 8)}%` }]} />
+                </View>
+                <Text style={styles.subProgresso}>
+                  {statusBaseline.diasRegistrados} de {statusBaseline.metaDias} dias analisados • Calibrando rotina residencial
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.baselineMetricas}>
+                <View style={styles.itemMetricaBaseline}>
+                  <Text style={styles.labelMetricaBaseline}>Média Água Aprendida</Text>
+                  <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaAguaLitrosDia} L/dia</Text>
+                </View>
+                <View style={styles.divisorMetrica} />
+                <View style={styles.itemMetricaBaseline}>
+                  <Text style={styles.labelMetricaBaseline}>Média Energia Aprendida</Text>
+                  <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaEnergiaKwhDia} kWh/dia</Text>
+                </View>
+              </View>
+            )}
+
+            {totaisDisponiveis && <Text style={styles.dicaBaseline}>{statusBaseline.dica}</Text>}
+            <SeloDesatualizado visivel={totaisDesatualizados} />
           </View>
 
-          <View style={styles.rodapeCentral}>
-            <Text style={styles.textoRodapeCentral}>Dispositivo: {dispositivoId || "Não vinculado"}</Text>
-            <Text style={styles.textoRodapeCentral}>Última atualização: {dataHoraUltimaLeitura}</Text>
-          </View>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+/** Cartão de consumo do dia (água ou energia) que leva à tela de detalhes. */
+function CardConsumo({ icone, cor, rotulo, valor, unidade, mes, desatualizado, onPress }: {
+  icone: keyof typeof Ionicons.glyphMap;
+  cor: string;
+  rotulo: string;
+  valor: string;
+  unidade: string;
+  mes: string;
+  desatualizado: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.miniCard}
+      activeOpacity={0.8}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${rotulo}: ${valor} ${unidade}. ${mes}.${desatualizado ? ' Desatualizado.' : ''} Abrir detalhes`}
+    >
+      <View style={styles.miniCardTopo}>
+        <View style={[styles.miniCardIcone, { backgroundColor: `${cor}1f` }]}>
+          <Ionicons name={icone} size={16} color={cor} />
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={C.textoTer} />
+      </View>
+      <Text style={styles.miniCardLabel}>{rotulo}</Text>
+      <Text style={styles.miniCardValor} numberOfLines={1} adjustsFontSizeToFit>
+        {valor}<Text style={styles.miniCardUnidade}> {unidade}</Text>
+      </Text>
+      <View style={[styles.miniCardTraco, { backgroundColor: cor }]} />
+      <Text style={styles.miniCardSub}>{mes}</Text>
+      <SeloDesatualizado visivel={desatualizado} />
+    </TouchableOpacity>
+  );
+}
+
+/** Valor instantâneo enviado pela central. */
+function Medicao({ icone, cor, rotulo, valor, unidade }: {
+  icone: keyof typeof Ionicons.glyphMap;
+  cor: string;
+  rotulo: string;
+  valor: string;
+  unidade: string;
+}) {
+  return (
+    <View style={styles.itemMedicao} accessible accessibilityLabel={`${rotulo}: ${valor} ${unidade}`}>
+      <Ionicons name={icone} size={16} color={cor} />
+      <Text style={styles.medicaoValor} numberOfLines={1}>
+        {valor}<Text style={styles.medicaoUnid}> {unidade}</Text>
+      </Text>
+      <Text style={styles.medicaoLabel}>{rotulo}</Text>
+    </View>
+  );
+}
+
+const ANIMACAO_NATIVA = Platform.OS !== 'web';
+
+/** Ponto de status; pulsa suavemente só enquanto a central está ao vivo e se o sistema permitir animações. */
+function PontoAoVivo({ ativo, cor }: { ativo: boolean; cor: string }) {
+  const [opacidade] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    if (!ativo) return;
+    let montado = true;
+    let animacao: Animated.CompositeAnimation | null = null;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((reduzir) => {
+        if (!montado || reduzir) return;
+        animacao = Animated.loop(Animated.sequence([
+          Animated.timing(opacidade, { toValue: 0.3, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: ANIMACAO_NATIVA }),
+          Animated.timing(opacidade, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: ANIMACAO_NATIVA })
+        ]));
+        animacao.start();
+      })
+      .catch(() => {});
+    return () => {
+      montado = false;
+      animacao?.stop();
+      opacidade.setValue(1);
+    };
+  }, [ativo, opacidade]);
+
+  return <Animated.View style={[styles.pontoLive, { backgroundColor: cor, opacity: opacidade }]} />;
+}
+
+
+type Tom = 'ok' | 'alerta' | 'offline' | 'erro' | 'neutro';
+
+const TONS: Record<Tom, { destaque: string; borda: string; fundoIcone: string; fundoBadge: string }> = {
+  ok: { destaque: '#22c55e', borda: '#14532d', fundoIcone: 'rgba(34, 197, 94, 0.14)', fundoBadge: 'rgba(34, 197, 94, 0.12)' },
+  alerta: { destaque: '#f59e0b', borda: '#854d0e', fundoIcone: 'rgba(245, 158, 11, 0.15)', fundoBadge: 'rgba(245, 158, 11, 0.12)' },
+  offline: { destaque: '#f59e0b', borda: '#5c3a0c', fundoIcone: 'rgba(245, 158, 11, 0.12)', fundoBadge: 'rgba(245, 158, 11, 0.10)' },
+  erro: { destaque: '#f87171', borda: '#7f1d1d', fundoIcone: 'rgba(248, 113, 113, 0.14)', fundoBadge: 'rgba(248, 113, 113, 0.12)' },
+  neutro: { destaque: '#22b7d4', borda: '#173244', fundoIcone: 'rgba(34, 183, 212, 0.12)', fundoBadge: 'rgba(34, 183, 212, 0.10)' }
+};
+
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#07131b'
+    backgroundColor: C.fundo
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 40
   },
+  conteudo: {
+    width: '100%',
+    maxWidth: LARGURA_MAXIMA,
+    alignSelf: 'center'
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20
+    gap: 12,
+    marginBottom: 22
   },
   perfilContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 12,
+    flexShrink: 1
   },
   logoImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 12
+    width: 46,
+    height: 46,
+    borderRadius: 14
+  },
+  data: {
+    color: C.textoTer,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+    marginBottom: 1
   },
   saudacao: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
+    color: C.texto,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4
   },
   subSaudacao: {
-    color: '#7e9aa8',
-    fontSize: 13
+    color: C.textoSec,
+    fontSize: 13,
+    marginTop: 1
   },
   botaoSino: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.superficie,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1e3a4b',
-    position: 'relative'
+    borderColor: C.borda
   },
   badgeNotif: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444'
+    top: 10,
+    right: 11,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: C.superficie
   },
-  rowCards: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14
+  etiqueta: {
+    color: C.textoTer,
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 1.1
   },
-  miniCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16
-  },
-  cardAgua: {
-    backgroundColor: '#0c2738',
+
+  // Painel principal
+  painel: {
+    backgroundColor: C.superficie,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#164e63'
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 18,
+    marginBottom: 26,
+    overflow: 'hidden'
   },
-  cardEnergia: {
-    backgroundColor: '#0d2d24',
-    borderWidth: 1,
-    borderColor: '#065f46'
+  painelFaixa: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    opacity: 0.9
   },
-  miniCardTopo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8
-  },
-  miniCardLabel: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  miniCardValor: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 4
-  },
-  miniCardSub: {
-    color: '#64748b',
-    fontSize: 11
-  },
-  cardTotalPrevisto: {
-    backgroundColor: '#0b1d28',
-    borderRadius: 16,
-    padding: 18,
+  painelTopo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#133547'
+    gap: 8,
+    marginBottom: 14
   },
-  totalPrevistoLabel: {
-    color: '#94a3b8',
-    fontSize: 13
+  badgeLive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999
   },
-  totalPrevistoValor: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginVertical: 4
+  pontoLive: {
+    width: 7,
+    height: 7,
+    borderRadius: 4
+  },
+  badgeLiveTexto: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.6
+  },
+  situacaoLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  situacaoIcone: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  situacaoStatus: {
+    color: C.texto,
+    fontSize: 17,
+    fontWeight: '700',
+    lineHeight: 22,
+    flexShrink: 1
+  },
+  painelDivisor: {
+    height: 1,
+    backgroundColor: C.bordaSuave,
+    marginVertical: 16
+  },
+  contaLinha: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12
+  },
+  contaLabel: {
+    color: C.textoSec,
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  contaValor: {
+    color: C.texto,
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginTop: 2,
+    marginBottom: 4,
+    ...NUMEROS
+  },
+  contaMoeda: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: C.textoSec,
+    letterSpacing: 0
   },
   linhaVariacao: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    gap: 5
   },
-  totalPrevistoSub: {
-    color: '#22c55e',
-    fontSize: 12,
-    fontWeight: '500'
+  contaSub: {
+    color: C.textoTer,
+    fontSize: 12
   },
   circuloCifrao: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: '#15803d',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  cardSituacao: {
-    backgroundColor: '#0c221e',
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
     borderWidth: 1,
-    borderColor: '#14532d'
-  },
-  cardSituacaoAlerta: {
-    backgroundColor: '#2b1b0d',
-    borderColor: '#854d0e'
-  },
-  situacaoEsquerda: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  checkIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#22c55e',
+    borderColor: '#14532d',
     justifyContent: 'center',
     alignItems: 'center'
   },
-  checkIconBoxAlerta: {
-    backgroundColor: '#f59e0b'
-  },
-  situacaoLabel: {
-    color: '#86efac',
-    fontSize: 12,
-    fontWeight: '500'
-  },
-  situacaoStatus: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600'
-  },
+
+  // Seções
   secaoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -585,43 +737,114 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   secaoTitulo: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: 'bold'
+    color: C.texto,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12
+  },
+  secaoLinkBotao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    minHeight: 32
   },
   secaoLink: {
-    color: '#7e9aa8',
-    fontSize: 13
+    color: C.marca,
+    fontSize: 13,
+    fontWeight: '600'
   },
+
+  // Consumo de hoje
+  rowCards: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 26
+  },
+  miniCard: {
+    flex: 1,
+    backgroundColor: C.superficie,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.borda,
+    padding: 16
+  },
+  miniCardTopo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14
+  },
+  miniCardIcone: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  miniCardLabel: {
+    color: C.textoSec,
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 2
+  },
+  miniCardValor: {
+    color: C.texto,
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.6,
+    ...NUMEROS
+  },
+  miniCardUnidade: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.textoSec,
+    letterSpacing: 0
+  },
+  miniCardTraco: {
+    width: 22,
+    height: 3,
+    borderRadius: 2,
+    marginTop: 10,
+    marginBottom: 8
+  },
+  miniCardSub: {
+    color: C.textoTer,
+    fontSize: 12,
+    ...NUMEROS
+  },
+
+  // Alertas
   cardAlertaCritico: {
     backgroundColor: '#261414',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 26,
     borderWidth: 1,
     borderColor: '#7f1d1d'
   },
   cardSemAlerta: {
-    backgroundColor: '#0a1d27',
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: C.superficie,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 26,
     borderWidth: 1,
-    borderColor: '#133547'
+    borderColor: C.borda
   },
   textoSemAlerta: {
-    color: '#94a3b8',
-    fontSize: 13
+    color: C.textoSec,
+    fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 1
   },
   alertaIconeBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#451a1a',
     justifyContent: 'center',
     alignItems: 'center',
@@ -631,8 +854,8 @@ const styles = StyleSheet.create({
     flex: 1
   },
   alertaTitulo: {
-    color: '#f87171',
-    fontWeight: 'bold',
+    color: C.perigo,
+    fontWeight: '700',
     fontSize: 15
   },
   alertaSub: {
@@ -640,85 +863,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2
   },
+
+  // Agora na central
   cardTempoReal: {
-    backgroundColor: '#0a1d27',
-    borderRadius: 14,
+    backgroundColor: C.superficie,
+    borderRadius: 18,
     padding: 16,
+    marginBottom: 26,
     borderWidth: 1,
-    borderColor: '#133547'
+    borderColor: C.borda
   },
   tempoRealHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14
-  },
-  linhaCentral: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  tempoRealTitulo: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: 'bold',
-    letterSpacing: 1
-  },
-  badgeLive: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6
-  },
-  badgeOffline: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)'
-  },
-  pontoLive: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22c55e'
-  },
-  pontoOffline: {
-    backgroundColor: '#ef4444'
-  },
-  badgeLiveTexto: {
-    color: '#22c55e',
-    fontSize: 10,
-    fontWeight: 'bold'
-  },
-  badgeOfflineTexto: {
-    color: '#ef4444'
+    marginBottom: 14
   },
   tempoRealValores: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    gap: 8
   },
   itemMedicao: {
-    alignItems: 'center'
-  },
-  medicaoLabel: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginBottom: 4
+    flex: 1,
+    backgroundColor: C.superficieAlta,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    gap: 6
   },
   medicaoValor: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
+    color: C.texto,
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    ...NUMEROS
   },
   medicaoUnid: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: 'normal'
+    fontSize: 11,
+    color: C.textoSec,
+    fontWeight: '600',
+    letterSpacing: 0
+  },
+  medicaoLabel: {
+    color: C.textoTer,
+    fontSize: 11
   },
   rodapeCentral: {
     marginTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#132838',
+    borderTopColor: C.bordaSuave,
     paddingTop: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -727,12 +920,14 @@ const styles = StyleSheet.create({
     gap: 6
   },
   textoRodapeCentral: {
-    color: '#64748b',
+    color: C.textoTer,
     fontSize: 11
   },
+
+  // Sem central
   cardSemCentral: {
-    backgroundColor: '#1c1917',
-    borderRadius: 16,
+    backgroundColor: '#1a1610',
+    borderRadius: 18,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
@@ -746,7 +941,7 @@ const styles = StyleSheet.create({
   iconeSemCentral: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     justifyContent: 'center',
     alignItems: 'center'
@@ -758,13 +953,13 @@ const styles = StyleSheet.create({
   tituloSemCentral: {
     color: '#fbbf24',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 2
   },
   descricaoSemCentral: {
-    color: '#d97706',
+    color: '#e3a857',
     fontSize: 12,
-    lineHeight: 16
+    lineHeight: 17
   },
   botoesAcaoSemCentral: {
     flexDirection: 'row',
@@ -773,21 +968,23 @@ const styles = StyleSheet.create({
   botaoScanPrincipal: {
     flex: 1.3,
     flexDirection: 'row',
-    backgroundColor: '#22d3ee',
-    borderRadius: 10,
+    backgroundColor: C.marca,
+    borderRadius: 12,
+    minHeight: 44,
     paddingVertical: 10,
     justifyContent: 'center',
     alignItems: 'center'
   },
   textoBotaoScanPrincipal: {
-    color: '#07131b',
+    color: C.fundo,
     fontSize: 13,
-    fontWeight: 'bold'
+    fontWeight: '700'
   },
   botaoDigitarSecundario: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 10,
+    borderRadius: 12,
+    minHeight: 44,
     paddingVertical: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -799,13 +996,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600'
   },
+
+  // Linha de base
   cardBaseline: {
-    backgroundColor: '#0c1a24',
-    borderRadius: 16,
+    backgroundColor: C.superficie,
+    borderRadius: 18,
     padding: 16,
-    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4f'
+    borderColor: C.borda
   },
   baselineTopo: {
     flexDirection: 'row',
@@ -813,31 +1011,26 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   baselineIconeBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(56, 189, 248, 0.13)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12
   },
-  baselineEtiqueta: {
-    color: '#38bdf8',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-    marginBottom: 2
-  },
   baselineTitulo: {
-    color: '#ffffff',
+    color: C.texto,
     fontSize: 14,
-    fontWeight: '700'
+    fontWeight: '700',
+    lineHeight: 19
   },
   badgeFase: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1
+    borderRadius: 999,
+    borderWidth: 1,
+    marginLeft: 8
   },
   badgeFaseAprendizado: {
     backgroundColor: 'rgba(56, 189, 248, 0.1)',
@@ -849,30 +1042,30 @@ const styles = StyleSheet.create({
   },
   badgeFaseTexto: {
     fontSize: 11,
-    fontWeight: 'bold'
+    fontWeight: '800'
   },
   barraProgressoContainer: {
     marginBottom: 10
   },
   trilhoProgresso: {
     height: 6,
-    backgroundColor: '#07131b',
+    backgroundColor: C.fundo,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 6
   },
   preenchimentoProgresso: {
     height: '100%',
-    backgroundColor: '#38bdf8',
+    backgroundColor: C.agua,
     borderRadius: 4
   },
   subProgresso: {
-    color: '#94a3b8',
+    color: C.textoSec,
     fontSize: 11
   },
   baselineMetricas: {
     flexDirection: 'row',
-    backgroundColor: '#07131b',
+    backgroundColor: C.fundo,
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
@@ -880,27 +1073,29 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   itemMetricaBaseline: {
-    alignItems: 'center'
+    alignItems: 'center',
+    flexShrink: 1
   },
   labelMetricaBaseline: {
-    color: '#64748b',
+    color: C.textoTer,
     fontSize: 11,
-    marginBottom: 2
+    marginBottom: 2,
+    textAlign: 'center'
   },
   valorMetricaBaseline: {
-    color: '#ffffff',
+    color: C.texto,
     fontSize: 15,
-    fontWeight: 'bold'
+    fontWeight: '700',
+    ...NUMEROS
   },
   divisorMetrica: {
     width: 1,
     height: 28,
-    backgroundColor: '#1e3a4f'
+    backgroundColor: C.borda
   },
   dicaBaseline: {
-    color: '#94a3b8',
+    color: C.textoSec,
     fontSize: 12,
-    lineHeight: 17,
-    fontStyle: 'italic'
+    lineHeight: 17
   }
 });

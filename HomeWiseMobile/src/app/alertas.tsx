@@ -4,7 +4,6 @@ import {
   Text,
   View,
   ScrollView,
-  TouchableOpacity,
   StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +21,8 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
+import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
 export default function AlertasScreen() {
   const router = useRouter();
@@ -80,9 +81,9 @@ export default function AlertasScreen() {
         local: `Dispositivo ${dispositivoId}`,
         descricao: 'Carregando as medições mais recentes da central.',
         icone: 'sync-outline' as const,
-        corBorda: '#1e3a4b',
+        corBorda: '#173244',
         corFundo: '#0e222e',
-        corTexto: '#94a3b8'
+        corTexto: '#9db1bd'
       }
     : estadoLeitura === 'erro'
     ? {
@@ -166,9 +167,9 @@ export default function AlertasScreen() {
         ? 'Não foi possível carregar o histórico de consumo para avaliar a linha de base.'
         : 'Carregando o histórico de consumo da sua residência.',
       icone: (dispBaseline === 'indisponivel' ? 'alert-circle-outline' : 'sync-outline') as 'alert-circle-outline' | 'sync-outline',
-      corBorda: '#1e3a4b',
+      corBorda: '#173244',
       corFundo: '#0e222e',
-      corTexto: '#94a3b8'
+      corTexto: '#9db1bd'
     } : {
       id: 5,
       tipo: statusBaseline.fase === 'calibrado' ? 'sucesso' : 'aviso',
@@ -184,114 +185,156 @@ export default function AlertasScreen() {
     }
   ];
 
+
+  // ----- Apenas apresentação -----
+  // Ids 1–3 são os alertas dos sensores; 4 e 5 são diagnósticos do sistema.
+  const alertasAtivos = alertas.filter((alerta) => alerta.id <= 3);
+  const diagnosticos = alertas.filter((alerta) => alerta.id > 3);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Alertas e Diagnóstico</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <View style={styles.conteudo}>
 
-        <Text style={styles.subtituloPagina}>
-          Regras de negócio e monitoramento contínuo da sua residência
-        </Text>
+          <CabecalhoTela titulo="Alertas e Diagnóstico" onVoltar={() => router.push('/')} />
 
-        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
-        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+          <Text style={styles.subtituloPagina}>
+            Regras de negócio e monitoramento contínuo da sua residência
+          </Text>
 
-        {/* Lista de Alertas Baseada no Estado Real dos Sensores */}
-        {alertas.map((alerta) => (
+          {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+          <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+
+          {/* Resumo: só afirma "nenhum alerta" quando a central está ao vivo */}
           <View
-            key={alerta.id}
-            style={[styles.cardAlerta, { backgroundColor: alerta.corFundo, borderColor: alerta.corBorda }]}
+            style={[
+              styles.resumo,
+              alertasAtivos.length > 0
+                ? { borderColor: alfa(C.perigo, 0.45), backgroundColor: alfa(C.perigo, 0.07) }
+                : online
+                ? { borderColor: alfa(C.ok, 0.4), backgroundColor: alfa(C.ok, 0.06) }
+                : null
+            ]}
+            accessibilityLiveRegion="polite"
           >
-            <View style={styles.alertaTopo}>
-              <View style={styles.alertaTituloLinha}>
-                <Ionicons name={alerta.icone} size={18} color={alerta.corTexto} />
-                <Text style={[styles.tituloAlerta, { color: alerta.corTexto }]}>{alerta.titulo}</Text>
-              </View>
+            <View style={[styles.resumoIcone, {
+              backgroundColor: alfa(alertasAtivos.length > 0 ? C.perigo : online ? C.ok : C.textoSec, 0.14)
+            }]}>
+              <Ionicons
+                name={alertasAtivos.length > 0 ? 'warning' : online ? 'shield-checkmark' : 'help-circle-outline'}
+                size={22}
+                color={alertasAtivos.length > 0 ? C.perigo : online ? C.ok : C.textoSec}
+              />
             </View>
-            <Text style={styles.localAlerta}>{alerta.local}</Text>
-            <Text style={styles.descAlerta}>{alerta.descricao}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.resumoNumero}>
+                {alertasAtivos.length > 0
+                  ? `${alertasAtivos.length} ${alertasAtivos.length === 1 ? 'alerta ativo' : 'alertas ativos'}`
+                  : online
+                  ? 'Nenhum alerta ativo'
+                  : 'Alertas não verificados'}
+              </Text>
+              <Text style={styles.resumoTexto}>
+                {alertasAtivos.length > 0
+                  ? 'Confira os detalhes abaixo e verifique sua residência.'
+                  : online
+                  ? 'Vazão, potência e tensão dentro dos limites agora.'
+                  : 'Os alertas dependem das medições da central ao vivo.'}
+              </Text>
+            </View>
           </View>
-        ))}
 
+          {alertasAtivos.length > 0 && (
+            <>
+              <Text style={styles.secao}>ALERTAS ATIVOS</Text>
+              {alertasAtivos.map((alerta) => <CartaoAlerta key={alerta.id} alerta={alerta} />)}
+            </>
+          )}
+
+          <Text style={styles.secao}>DIAGNÓSTICO DO SISTEMA</Text>
+          {diagnosticos.map((alerta) => <CartaoAlerta key={alerta.id} alerta={alerta} />)}
+
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+type ItemAlerta = {
+  tipo: string;
+  titulo: string;
+  local: string;
+  descricao: string;
+  icone: keyof typeof Ionicons.glyphMap;
+  corBorda: string;
+  corTexto: string;
+};
+
+const ROTULO_TIPO: Record<string, string> = { critico: 'CRÍTICO', aviso: 'AVISO', sucesso: 'OK' };
+
+function CartaoAlerta({ alerta }: { alerta: ItemAlerta }) {
+  return (
+    <View
+      style={[styles.cardAlerta, { borderColor: alfa(alerta.corTexto, 0.32), backgroundColor: alfa(alerta.corTexto, 0.045) }]}
+      accessible
+      accessibilityLabel={`${ROTULO_TIPO[alerta.tipo] ?? ''} ${alerta.titulo}. ${alerta.local}. ${alerta.descricao}`}
+    >
+      <View style={[styles.faixa, { backgroundColor: alerta.corTexto }]} />
+      <View style={styles.alertaTopo}>
+        <View style={[styles.alertaIcone, { backgroundColor: alfa(alerta.corTexto, 0.14) }]}>
+          <Ionicons name={alerta.icone} size={18} color={alerta.corTexto} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.tituloAlerta}>{alerta.titulo}</Text>
+          <Text style={styles.localAlerta}>{alerta.local}</Text>
+        </View>
+        {!!ROTULO_TIPO[alerta.tipo] && (
+          <View style={[styles.chip, { backgroundColor: alfa(alerta.corTexto, 0.14) }]}>
+            <Text style={[styles.chipTexto, { color: alerta.corTexto }]}>{ROTULO_TIPO[alerta.tipo]}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.descAlerta}>{alerta.descricao}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#07131b'
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40
-  },
-  header: {
+  container: { flex: 1, backgroundColor: C.fundo },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  conteudo: { width: '100%', maxWidth: LARGURA_MAXIMA, alignSelf: 'center' },
+  subtituloPagina: { color: C.textoTer, fontSize: 13, textAlign: 'center', marginTop: -10, marginBottom: 20 },
+  resumo: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
-  },
-  botaoVoltar: {
-    width: 40,
-    height: 40,
+    gap: 14,
+    backgroundColor: C.superficie,
+    borderWidth: 1,
+    borderColor: C.borda,
     borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  tituloHeader: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
-  },
-  subtituloPagina: {
-    color: '#64748b',
-    fontSize: 13,
-    marginBottom: 20
-  },
-  cardAlerta: {
-    borderRadius: 16,
     padding: 18,
+    marginBottom: 24
+  },
+  resumoIcone: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  resumoNumero: { color: C.texto, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  resumoTexto: { color: C.textoSec, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  secao: { color: C.textoTer, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.1, marginBottom: 10 },
+  cardAlerta: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingLeft: 20,
+    paddingRight: 16,
     borderWidth: 1,
-    marginBottom: 16
+    marginBottom: 12,
+    overflow: 'hidden'
   },
-  alertaTopo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6
-  },
-  alertaTituloLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  tituloAlerta: {
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  localAlerta: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginBottom: 8
-  },
-  descAlerta: {
-    color: '#cbd5e1',
-    fontSize: 13,
-    lineHeight: 18
-  }
+  faixa: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
+  alertaTopo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
+  alertaIcone: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tituloAlerta: { color: C.texto, fontSize: 15, fontWeight: '700', lineHeight: 20 },
+  localAlerta: { color: C.textoTer, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  chip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  chipTexto: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  descAlerta: { color: C.textoSec, fontSize: 13, lineHeight: 19 }
 });

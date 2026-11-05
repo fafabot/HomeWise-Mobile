@@ -50,7 +50,9 @@ function harness(plan = 'basico') {
       if (Object.hasOwn(deps, name)) return deps[name];
       if (name.startsWith('@/')) {
         const target = name.slice(2);
-        return load(target + (target.startsWith('app/') ? '.tsx' : '.ts'));
+        // Componentes .tsx fora de app/ (ex.: components/hw) também são resolvidos.
+        const comTs = path.join(__dirname, '../src', target + '.ts');
+        return load(target + (target.startsWith('app/') || !require('node:fs').existsSync(comTs) ? '.tsx' : '.ts'));
       }
       throw new Error(`Blocked unexpected dependency: ${name}`);
     });

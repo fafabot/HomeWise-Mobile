@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  StyleSheet,
   Text,
   View,
   ScrollView,
@@ -22,6 +21,12 @@ import {
   calcularConsumoPorPeriodo,
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
+import { C } from '@/constants/hw-tema';
+import CabecalhoTela from '@/components/hw/CabecalhoTela';
+import SeletorSegmentado from '@/components/hw/SeletorSegmentado';
+import GraficoBarras from '@/components/hw/GraficoBarras';
+import CartaoUpgrade from '@/components/hw/CartaoUpgrade';
+import { LinhaResumo, criarEstilosConsumo } from '@/components/hw/TelaConsumo';
 
 export default function AguaScreen() {
   const router = useRouter();
@@ -98,356 +103,119 @@ export default function AguaScreen() {
   const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Água</Text>
-          <TouchableOpacity style={styles.botaoSino} activeOpacity={0.7} onPress={() => router.push('/alertas')}>
-            <Ionicons name="notifications-outline" size={20} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
+        <View style={styles.conteudo}>
 
-        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
-        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+          <CabecalhoTela
+            titulo="Água"
+            subtitulo="Sensor de vazão YF-S201"
+            onVoltar={() => router.push('/')}
+            acao={{ icone: 'notifications-outline', rotulo: 'Alertas', onPress: () => router.push('/alertas') }}
+          />
 
-        {/* Botoes de Periodo */}
-        <View style={styles.periodoBarra}>
-          {(['dia', 'semana', 'mes', 'ano'] as const).map((item) => {
-            const restritoPlus = (item === 'mes' || item === 'ano') && !possuiPlus;
-            return (
-              <TouchableOpacity
-                key={item}
-                style={[styles.periodoBotao, periodo === item && styles.periodoBotaoAtivo]}
-                onPress={() => {
-                  if (restritoPlus) {
-                    setAvisoUpgrade(true);
-                    return;
-                  }
-                  setAvisoUpgrade(false);
-                  setPeriodo(item);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={[styles.periodoTexto, periodo === item && styles.periodoTextoAtivo]}>
-                    {item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1)}
-                  </Text>
-                  {restritoPlus && <Ionicons name="lock-closed" size={11} color="#38bdf8" />}
-                </View>
+          {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+          <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+
+          <SeletorSegmentado
+            rotuloGrupo="Período"
+            cor={ACENTO}
+            ativo={periodo}
+            opcoes={(['dia', 'semana', 'mes', 'ano'] as const).map((item) => ({
+              chave: item,
+              rotulo: item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1),
+              bloqueado: (item === 'mes' || item === 'ano') && !possuiPlus
+            }))}
+            onSelecionar={(item) => {
+              const restritoPlus = (item === 'mes' || item === 'ano') && !possuiPlus;
+              if (restritoPlus) {
+                setAvisoUpgrade(true);
+                return;
+              }
+              setAvisoUpgrade(false);
+              setPeriodo(item);
+            }}
+          />
+
+          {avisoUpgrade && !possuiPlus && (
+            <CartaoUpgrade
+              titulo="Relatórios Mensais e Anuais (Plano Plus)"
+              descricao="O plano Básico inclui relatórios diários e semanais. Faça upgrade para o HomeWise Plus para desbloquear o histórico completo de Mês e Ano."
+              acao="Conhecer plano Plus"
+              onPress={() => router.push('/gerenciar-assinatura')}
+            />
+          )}
+
+          {/* Destaque: consumo do período selecionado */}
+          <View style={styles.destaque}>
+            <View style={styles.destaqueBrilho} />
+            <View style={styles.destaqueTopo}>
+              <View style={styles.destaqueIcone}>
+                <Ionicons name="water" size={18} color={ACENTO} />
+              </View>
+              <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
+            </View>
+            <Text style={styles.valorConsumo} accessibilityLabel={`${rotuloConsumoPeriodo}: ${consumoPeriodoTexto} litros`}>
+              {consumoPeriodoTexto}<Text style={styles.unidade}> L</Text>
+            </Text>
+            <SeloDesatualizado visivel={totaisDesatualizados} />
+            <View style={styles.linhaInfo}>
+              <View style={styles.infoBloco}>
+                <Ionicons name="speedometer-outline" size={15} color={ACENTO} />
+                <Text style={styles.infoLabel}>Vazão instantânea</Text>
+                <Text style={styles.infoValor}>{vazaoLMin} <Text style={styles.infoUnidade}>L/min</Text></Text>
+              </View>
+              <View style={styles.infoBloco}>
+                <Ionicons name="trending-up-outline" size={15} color={ACENTO} />
+                <Text style={styles.infoLabel}>Projeção mensal</Text>
+                <Text style={styles.infoValor}>{previsaoMesLitros} <Text style={styles.infoUnidade}>L</Text></Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Gráfico de barras por período */}
+          <View style={styles.card}>
+            <Text style={styles.tituloGrafico}>Vazão média por período (L/min)</Text>
+            <Text style={styles.legenda}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
+            <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
+            {graficoDisponivel && (
+              <View style={{ marginTop: 14 }}>
+                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} chaveAnimacao={periodo} />
+              </View>
+            )}
+          </View>
+
+          {/* Resumo e médias */}
+          <View style={styles.card}>
+            <View style={styles.resumoHeader}>
+              <View>
+                <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
+                <SeloDesatualizado visivel={totaisDesatualizados} />
+              </View>
+              <TouchableOpacity onPress={() => router.push('/')} accessibilityRole="link" hitSlop={8} style={styles.linkBotao}>
+                <Text style={styles.resumoLink}>Ver no painel</Text>
+                <Ionicons name="chevron-forward" size={14} color={C.marca} />
               </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {avisoUpgrade && !possuiPlus && (
-          <View style={styles.cardUpgrade}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="lock-closed" size={16} color="#38bdf8" />
-              <Text style={styles.upgradeTitulo}>Relatórios Mensais e Anuais (Plano Plus)</Text>
             </View>
-            <Text style={styles.upgradeDesc}>
-              O plano Básico inclui relatórios diários e semanais. Faça upgrade para o HomeWise Plus para desbloquear o histórico completo de Mês e Ano.
-            </Text>
-            <TouchableOpacity style={styles.botaoUpgrade} onPress={() => router.push('/gerenciar-assinatura')}>
-              <Text style={styles.botaoUpgradeTexto}>Conhecer plano Plus</Text>
-              <Ionicons name="arrow-forward" size={15} color="#ffffff" />
-            </TouchableOpacity>
+            <LinhaResumo icone="analytics-outline" rotulo="Média diária aprendida" valor={`${mediaDiariaLitros} L/dia`} />
+            <LinhaResumo
+              icone={statusBaseline.fase === 'calibrado' ? 'sparkles-outline' : 'hourglass-outline'}
+              rotulo="Linha de Base"
+              valor={!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
+              cor={statusBaseline.fase === 'calibrado' ? C.ok : ACENTO}
+            />
+            <LinhaResumo icone="calendar-outline" rotulo="Previsão mensal" valor={`${previsaoMesLitros} L`} ultima />
           </View>
-        )}
 
-        {/* Card Principal de Agua Conectado ao YF-S201 */}
-        <View style={styles.cardAguaPrincipal}>
-          <View style={styles.cardTopoLinha}>
-            <Ionicons name="water" size={18} color="#38bdf8" />
-            <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
-          </View>
-          <Text style={styles.valorConsumo}>{consumoPeriodoTexto} <Text style={styles.unidade}>L</Text></Text>
-          <SeloDesatualizado visivel={totaisDesatualizados} />
-          <View style={styles.linhaInfo}>
-            <View>
-              <Text style={styles.infoLabel}>Vazão instantânea</Text>
-              <Text style={styles.infoValor}>{vazaoLMin} L/min</Text>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.infoLabel}>Projeção mensal</Text>
-              <Text style={styles.infoValor}>{previsaoMesLitros} L</Text>
-            </View>
-          </View>
         </View>
-
-        {/* Grafico de Barras Dinâmico */}
-        <View style={styles.cardGrafico}>
-          <Text style={styles.tituloGrafico}>Vazão média por período (L/min)</Text>
-          <Text style={styles.labelHora}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
-          <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
-          {graficoDisponivel && <View style={styles.graficoContainer}>
-            {barras.map((barra, index) => {
-              const alturaPorcentagem = ((barra.valor ?? 0) / maiorValor) * 100;
-              return (
-                <View key={index} style={styles.colunaBarra} accessibilityLabel={`${barra.label}: ${barra.valor === null ? 'sem leituras' : barra.valor.toFixed(1)}`}>
-                  <View style={[styles.barraPreenchida, { height: barra.valor === null ? 0 : Math.max(alturaPorcentagem, 4) }]} />
-                  <Text style={styles.labelHora}>{barra.label}</Text>
-                </View>
-              );
-            })}
-          </View>}
-        </View>
-
-        {/* Resumo e Medias */}
-        <View style={styles.cardResumo}>
-          <View style={styles.resumoHeader}>
-            <View>
-              <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
-              <SeloDesatualizado visivel={totaisDesatualizados} />
-            </View>
-            <TouchableOpacity onPress={() => router.push('/')}>
-              <Text style={styles.resumoLink}>Ver no painel</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Média diária aprendida</Text>
-            <Text style={styles.resumoValor}>{mediaDiariaLitros} L/dia</Text>
-          </View>
-          <View style={styles.resumoLinha}>
-            <Text style={styles.resumoLabel}>Linha de Base</Text>
-            <Text style={[styles.resumoValor, { color: statusBaseline.fase === 'calibrado' ? '#22c55e' : '#38bdf8' }]}>
-              {!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
-            </Text>
-          </View>
-          <View style={[styles.resumoLinha, { borderBottomWidth: 0 }]}>
-            <Text style={styles.resumoLabel}>Previsão mensal</Text>
-            <Text style={styles.resumoValor}>{previsaoMesLitros} L</Text>
-          </View>
-        </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#07131b'
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  botaoVoltar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  botaoSino: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  tituloHeader: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
-  },
-  periodoBarra: {
-    flexDirection: 'row',
-    backgroundColor: '#0a1a24',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16
-  },
-  periodoBotao: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8
-  },
-  periodoBotaoAtivo: {
-    backgroundColor: '#0284c7'
-  },
-  periodoTexto: {
-    color: '#64748b',
-    fontSize: 13,
-    fontWeight: '600'
-  },
-  periodoTextoAtivo: {
-    color: '#ffffff'
-  },
-  cardAguaPrincipal: {
-    backgroundColor: '#0c2738',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#164e63',
-    marginBottom: 16
-  },
-  cardTopoLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  labelConsumo: {
-    color: '#38bdf8',
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  valorConsumo: {
-    color: '#ffffff',
-    fontSize: 34,
-    fontWeight: 'bold',
-    marginVertical: 6
-  },
-  unidade: {
-    fontSize: 20,
-    color: '#cbd5e1',
-    fontWeight: 'normal'
-  },
-  linhaInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    paddingTop: 12
-  },
-  infoLabel: {
-    color: '#94a3b8',
-    fontSize: 12
-  },
-  infoValor: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: 'bold',
-    marginTop: 2
-  },
-  cardGrafico: {
-    backgroundColor: '#0b1d28',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#133547',
-    marginBottom: 16
-  },
-  tituloGrafico: {
-    color: '#94a3b8',
-    fontSize: 13,
-    marginBottom: 16,
-    fontWeight: '500'
-  },
-  graficoContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 140,
-    paddingBottom: 6
-  },
-  colunaBarra: {
-    alignItems: 'center',
-    flex: 1
-  },
-  barraPreenchida: {
-    width: 14,
-    backgroundColor: '#22b7d4',
-    borderRadius: 6,
-    marginBottom: 8
-  },
-  labelHora: {
-    color: '#64748b',
-    fontSize: 10
-  },
-  cardResumo: {
-    backgroundColor: '#0b1d28',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#133547'
-  },
-  resumoHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14
-  },
-  resumoTitulo: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: 'bold'
-  },
-  resumoLink: {
-    color: '#0284c7',
-    fontSize: 12
-  },
-  resumoLinha: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#132838'
-  },
-  resumoLabel: {
-    color: '#94a3b8',
-    fontSize: 13
-  },
-  resumoValor: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  cardUpgrade: {
-    backgroundColor: '#0c2738',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#0284c7',
-    marginBottom: 16,
-    gap: 8
-  },
-  upgradeTitulo: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  upgradeDesc: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    lineHeight: 18
-  },
-  botaoUpgrade: {
-    marginTop: 4,
-    backgroundColor: '#0284c7',
-    borderRadius: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6
-  },
-  botaoUpgradeTexto: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: 'bold'
-  }
-});
+const ACENTO = C.agua;
+
+const styles = criarEstilosConsumo(ACENTO);
