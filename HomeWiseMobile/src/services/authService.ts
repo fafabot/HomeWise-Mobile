@@ -23,6 +23,8 @@ export interface DadosUsuario {
   metas_consumo?: { agua?: number; energia?: number };
   residencia?: string;
   cep?: string;
+  plano_id?: string;
+  plano_status?: string;
   atualizado_em?: any;
   criado_em?: any;
 }

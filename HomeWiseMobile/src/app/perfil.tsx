@@ -122,15 +122,25 @@ export default function PerfilScreen() {
         {/* Card do Usuario Conectado ao Firebase */}
         <View style={styles.cardPerfil}>
           <ProfilePhoto nome={nomeExibicao} />
-          <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
-          <Text style={styles.emailUsuario}>{emailExibicao}</Text>
+          <Text style={styles.nomeUsuario} numberOfLines={2}>{nomeExibicao}</Text>
+          {!!emailExibicao && <Text style={styles.emailUsuario} numberOfLines={1}>{emailExibicao}</Text>}
 
-          {/* Badge da Central Conectada */}
-          <View style={[styles.badgeCentral, !dispositivoId && { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-            <Ionicons name="hardware-chip" size={13} color={dispositivoId ? "#38bdf8" : "#f59e0b"} />
-            <Text style={[styles.badgeCentralTexto, !dispositivoId && { color: '#f59e0b' }]}>
-              {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
-            </Text>
+          <View style={styles.centralInfo}>
+            <View style={styles.centralIcone}>
+              <Ionicons name="hardware-chip-outline" size={19} color="#38bdf8" />
+            </View>
+            <View style={styles.centralTextoContainer}>
+              <Text style={styles.centralRotulo}>CENTRAL VINCULADA</Text>
+              <Text style={styles.centralValor} numberOfLines={1}>
+                {dispositivoId || 'Nenhuma central vinculada'}
+              </Text>
+            </View>
+            <View style={[styles.centralStatus, !dispositivoId && styles.centralStatusVazio]}>
+              <View style={[styles.centralStatusPonto, !dispositivoId && styles.centralStatusPontoVazio]} />
+              <Text style={[styles.centralStatusTexto, !dispositivoId && styles.centralStatusTextoVazio]}>
+                {dispositivoId ? 'Vinculada' : 'Pendente'}
+              </Text>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -269,31 +279,80 @@ const styles = StyleSheet.create({
   },
   nomeUsuario: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4
+    fontSize: 23,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 5
   },
   emailUsuario: {
-    color: '#64748b',
+    color: '#9aafbd',
     fontSize: 14,
-    marginBottom: 10
+    marginBottom: 18
   },
-  badgeCentral: {
+  centralInfo: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
     backgroundColor: '#071824',
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#183950',
-    marginBottom: 16
+    marginBottom: 18
   },
-  badgeCentralTexto: {
-    color: '#38bdf8',
-    fontSize: 12,
+  centralIcone: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#0e2b3b',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  centralTextoContainer: {
+    flex: 1,
+    gap: 3
+  },
+  centralRotulo: {
+    color: '#7995a6',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8
+  },
+  centralValor: {
+    color: '#e5f1f5',
+    fontSize: 13,
     fontWeight: '600'
+  },
+  centralStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5
+  },
+  centralStatusVazio: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)'
+  },
+  centralStatusPonto: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4ade80'
+  },
+  centralStatusPontoVazio: {
+    backgroundColor: '#f59e0b'
+  },
+  centralStatusTexto: {
+    color: '#86efac',
+    fontSize: 10,
+    fontWeight: '700'
+  },
+  centralStatusTextoVazio: {
+    color: '#fbbf24'
   },
   botaoEditarPerfil: {
     flexDirection: 'row',

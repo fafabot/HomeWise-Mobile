@@ -15,7 +15,7 @@ export default function PlanoAssinaturaScreen() {
       <Text style={s.eyebrow}>SEU HOMEWISE</Text>
       <Text style={s.title}>Mais controle para sua casa.</Text>
       <Text style={s.subtitle}>Olá, {nome}. Você ainda não tem um plano contratado. Conheça as opções para sua casa.</Text>
-      <View style={[s.card, s.featured]}>
+      <View style={s.card}>
         <View style={s.cardTop}><View style={s.icon}><Ionicons name="layers-outline" size={24} color="#76d7cd" /></View><View style={s.badge}><Text style={s.badgeText}>SEM PLANO</Text></View></View>
         <Text style={s.planName}>Nenhum plano contratado</Text>
         <Text style={[s.description, { marginBottom: 24 }]}>Compare os preços e benefícios e encontre a opção ideal para você.</Text>
@@ -23,7 +23,11 @@ export default function PlanoAssinaturaScreen() {
       </View>
       <Text style={s.sectionTitle}>Conheça nossos planos</Text>
       <Text style={s.sectionDescription}>Compare os benefícios de cada opção.</Text>
-      {planos.map(plano => <View key={plano.id} style={[s.card, { marginBottom: 16 }]}>
+      {planos.map(plano => <View key={plano.id} style={[s.card, plano.id === 'plus' && s.featured, { marginBottom: 16 }]}>
+        <View style={s.cardTop}>
+          <View style={s.icon}><Ionicons name={plano.icone} size={24} color="#76d7cd" /></View>
+          {plano.id === 'plus' && <View style={s.badge}><Text style={s.badgeText}>MAIS ESCOLHIDO</Text></View>}
+        </View>
         <Text style={s.planName}>{plano.nome}</Text>
         <Text style={s.description}>{plano.descricao}</Text>
         <PlanPrice value={plano.preco} />
