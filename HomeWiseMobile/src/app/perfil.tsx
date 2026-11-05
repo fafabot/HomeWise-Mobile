@@ -17,6 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import ProfilePhoto from '@/components/ProfilePhoto';
 import { authErrorMessage } from '@/services/authErrors';
 import { obterPlanoPorId, temPlanoAtivo } from '@/constants/planos';
+import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
+import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
 export default function PerfilScreen() {
   const router = useRouter();
@@ -88,7 +90,7 @@ export default function PerfilScreen() {
       titulo: 'Plano e assinatura',
       icone: 'card-outline' as const,
       badge: rotuloPlano,
-      acao: () => router.push('/plano-assinatura')
+      acao: () => router.push('/gerenciar-assinatura')
     },
     {
       id: 5,
@@ -110,86 +112,108 @@ export default function PerfilScreen() {
     }
   ];
 
+
+  // ----- Apenas apresentação: agrupa as mesmas opções em seções -----
+  const grupos = [
+    { titulo: 'CASA E CENTRAL', ids: [0, 3, 5, 6] },
+    { titulo: 'CONTA E PLANO', ids: [1, 2, 4] },
+    { titulo: 'SOBRE O APP', ids: [7] }
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.botaoVoltar} activeOpacity={0.7} onPress={() => router.push('/')}>
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.tituloHeader}>Perfil</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <View style={styles.conteudo}>
 
-        {/* Card do Usuario Conectado ao Firebase */}
-        <View style={styles.cardPerfil}>
-          <ProfilePhoto nome={nomeExibicao} />
-          <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
-          <Text style={styles.emailUsuario}>{emailExibicao}</Text>
+          <CabecalhoTela titulo="Perfil" onVoltar={() => router.push('/')} />
 
-          {/* Badge da Central Conectada */}
-          <View style={[styles.badgeCentral, !dispositivoId && { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-            <Ionicons name="hardware-chip" size={13} color={dispositivoId ? "#38bdf8" : "#f59e0b"} />
-            <Text style={[styles.badgeCentralTexto, !dispositivoId && { color: '#f59e0b' }]}>
-              {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
-            </Text>
+          {/* Cartão do usuário */}
+          <View style={styles.cardPerfil}>
+            <View style={styles.cardPerfilBrilho} />
+            <ProfilePhoto nome={nomeExibicao} />
+            <Text style={styles.nomeUsuario}>{nomeExibicao}</Text>
+            <Text style={styles.emailUsuario}>{emailExibicao}</Text>
+
+            <View style={styles.chips}>
+              <View style={[styles.chip, !dispositivoId && styles.chipAlerta]}>
+                <Ionicons name="hardware-chip" size={13} color={dispositivoId ? C.agua : C.alerta} />
+                <Text style={[styles.chipTexto, !dispositivoId && { color: C.alerta }]}>
+                  {dispositivoId ? `Central: ${dispositivoId}` : 'Nenhuma central vinculada'}
+                </Text>
+              </View>
+              <View style={[styles.chip, planoAtivo ? styles.chipPlano : null]}>
+                <Ionicons name={planoAtivo ? 'diamond' : 'diamond-outline'} size={12} color={planoAtivo ? C.marca : C.textoTer} />
+                <Text style={[styles.chipTexto, { color: planoAtivo ? C.marca : C.textoSec }]}>{rotuloPlano}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.botaoEditarPerfil}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              onPress={() => router.push('/editar-perfil')}
+            >
+              <Ionicons name="create-outline" size={16} color={C.marca} style={{ marginRight: 6 }} />
+              <Text style={styles.textoEditarPerfil}>Editar Perfil</Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.botaoEditarPerfil}
-            activeOpacity={0.8}
-            onPress={() => router.push('/editar-perfil')}
-          >
-            <Ionicons name="create-outline" size={16} color="#22b7d4" style={{ marginRight: 6 }} />
-            <Text style={styles.textoEditarPerfil}>Editar Perfil</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Lista de Opcoes com Navegacao Funcional */}
-        <View style={styles.menuContainer}>
-          {opcoes.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.itemMenu}
-              activeOpacity={0.7}
-              onPress={item.acao}
-            >
-              <View style={styles.itemMenuEsquerda}>
-                <Ionicons name={item.icone} size={20} color="#38bdf8" />
-                <Text style={styles.itemMenuTitulo}>{item.titulo}</Text>
+          {/* Opções agrupadas */}
+          {grupos.map((grupo) => (
+            <View key={grupo.titulo}>
+              <Text style={styles.tituloGrupo}>{grupo.titulo}</Text>
+              <View style={styles.menuContainer}>
+                {opcoes.filter((item) => grupo.ids.includes(item.id)).map((item, indice, lista) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.itemMenu, indice === lista.length - 1 && { borderBottomWidth: 0 }]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.badge ? `${item.titulo}: ${item.badge}` : item.titulo}
+                    onPress={item.acao}
+                  >
+                    <View style={styles.itemMenuEsquerda}>
+                      <View style={styles.itemIcone}>
+                        <Ionicons name={item.icone} size={18} color={C.marca} />
+                      </View>
+                      <Text style={styles.itemMenuTitulo} numberOfLines={1}>{item.titulo}</Text>
+                    </View>
+                    <View style={styles.itemMenuDireita}>
+                      {!!item.badge && <Text style={styles.badgePlano} numberOfLines={1}>{item.badge}</Text>}
+                      <Ionicons name="chevron-forward" size={18} color={C.textoTer} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <View style={styles.itemMenuDireita}>
-                {item.badge && <Text style={styles.badgePlano}>{item.badge}</Text>}
-                <Ionicons name="chevron-forward" size={18} color="#64748b" />
-              </View>
-            </TouchableOpacity>
+            </View>
           ))}
+
+          {!!erroSobre && <Text accessibilityRole="alert" style={[styles.textoSair, { marginTop: 12 }]}>{erroSobre}</Text>}
+
+          {/* Sair da conta */}
+          <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => { setErroSaida(''); setConfirmandoSaida(true); }}>
+            <Ionicons name="log-out-outline" size={18} color={C.perigo} style={{ marginRight: 8 }} />
+            <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
+          </TouchableOpacity>
+
         </View>
-
-        {!!erroSobre && <Text accessibilityRole="alert" style={styles.textoSair}>{erroSobre}</Text>}
-
-        {/* Botao Sair da Conta com Firebase signOut */}
-        <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => { setErroSaida(''); setConfirmandoSaida(true); }}>
-          <Ionicons name="log-out-outline" size={18} color="#f87171" style={{ marginRight: 8 }} />
-          <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
-        </TouchableOpacity>
-
       </ScrollView>
       <Modal visible={confirmandoSaida} transparent animationType="fade" onRequestClose={() => { if (!saidaEmAndamento.current) setConfirmandoSaida(false); }}>
         <View style={styles.fundoModal}>
           <View style={styles.modalSaida} accessibilityViewIsModal>
-            <Text accessibilityRole="header" style={styles.tituloHeader}>Sair da conta</Text>
+            <View style={styles.modalIcone}>
+              <Ionicons name="log-out-outline" size={22} color={C.perigo} />
+            </View>
+            <Text accessibilityRole="header" style={styles.tituloModal}>Sair da conta</Text>
             <Text style={styles.mensagemSaida}>Deseja realmente sair da sua conta HomeWise?</Text>
             {!!erroSaida && <Text accessibilityRole="alert" style={styles.textoSair}>{erroSaida}</Text>}
             <View style={styles.acoesSaida}>
-              <TouchableOpacity accessibilityRole="button" style={styles.botaoEditarPerfil} disabled={saindo} onPress={() => setConfirmandoSaida(false)}>
-                <Text style={styles.textoEditarPerfil}>Cancelar</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.botaoCancelar} disabled={saindo} onPress={() => setConfirmandoSaida(false)}>
+                <Text style={styles.textoCancelar}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={[styles.botaoSair, styles.confirmarSaida]} disabled={saindo} onPress={handleSair}>
-                <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair'}</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.botaoConfirmarSaida} disabled={saindo} onPress={handleSair}>
+                <Text style={styles.textoConfirmarSaida}>{saindo ? 'Saindo...' : 'Sair'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -200,176 +224,129 @@ export default function PerfilScreen() {
 }
 
 const styles = StyleSheet.create({
-  fundoModal: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24
-  },
-  modalSaida: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#0b1d28',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#1e3a4b',
-    padding: 24,
-    gap: 16
-  },
-  mensagemSaida: { color: '#e2e8f0', fontSize: 15, lineHeight: 22 },
-  acoesSaida: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-  confirmarSaida: { marginTop: 0, paddingHorizontal: 24 },
-  container: {
-    flex: 1,
-    backgroundColor: '#07131b'
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  botaoVoltar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0e222e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a4b'
-  },
-  tituloHeader: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold'
-  },
+  container: { flex: 1, backgroundColor: C.fundo },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  conteudo: { width: '100%', maxWidth: LARGURA_MAXIMA, alignSelf: 'center' },
+
   cardPerfil: {
     alignItems: 'center',
-    backgroundColor: '#0b1d28',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: C.superficie,
+    borderRadius: 24,
+    paddingVertical: 26,
+    paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b'
+    borderColor: C.borda,
+    overflow: 'hidden'
   },
-  avatarGrande: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#0ea5e9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12
+  cardPerfilBrilho: {
+    position: 'absolute',
+    top: -140,
+    width: 320,
+    height: 220,
+    borderRadius: 160,
+    backgroundColor: alfa(C.marca, 0.1)
   },
-  avatarTexto: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: 'bold'
-  },
-  nomeUsuario: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4
-  },
-  emailUsuario: {
-    color: '#64748b',
-    fontSize: 14,
-    marginBottom: 10
-  },
-  badgeCentral: {
+  nomeUsuario: { color: C.texto, fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 2, marginBottom: 2, textAlign: 'center' },
+  emailUsuario: { color: C.textoTer, fontSize: 14, marginBottom: 14, textAlign: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 18 },
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#071824',
+    backgroundColor: C.superficieAlta,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#183950',
-    marginBottom: 16
+    borderColor: C.borda
   },
-  badgeCentralTexto: {
-    color: '#38bdf8',
-    fontSize: 12,
-    fontWeight: '600'
-  },
+  chipAlerta: { borderColor: alfa(C.alerta, 0.5), backgroundColor: alfa(C.alerta, 0.1) },
+  chipPlano: { borderColor: alfa(C.marca, 0.45), backgroundColor: alfa(C.marca, 0.1) },
+  chipTexto: { color: C.agua, fontSize: 12, fontWeight: '700' },
   botaoEditarPerfil: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f2b3c',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: alfa(C.marca, 0.1),
+    paddingHorizontal: 18,
+    minHeight: 42,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#164e63'
+    borderColor: alfa(C.marca, 0.35)
   },
-  textoEditarPerfil: {
-    color: '#22b7d4',
-    fontSize: 13,
-    fontWeight: '600'
-  },
+  textoEditarPerfil: { color: C.marca, fontSize: 13, fontWeight: '700' },
+
+  tituloGrupo: { color: C.textoTer, fontSize: 10.5, fontWeight: '700', letterSpacing: 1.1, marginTop: 24, marginBottom: 10, marginLeft: 4 },
   menuContainer: {
-    backgroundColor: '#0b1d28',
+    backgroundColor: C.superficie,
     borderRadius: 20,
-    marginTop: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: C.borda,
     overflow: 'hidden'
   },
   itemMenu: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    gap: 12,
+    minHeight: 58,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#122634'
+    borderBottomColor: C.bordaSuave
   },
-  itemMenuEsquerda: {
-    flexDirection: 'row',
+  itemMenuEsquerda: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+  itemIcone: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: alfa(C.marca, 0.1),
     alignItems: 'center',
-    gap: 12
+    justifyContent: 'center'
   },
-  itemMenuTitulo: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '500'
-  },
-  itemMenuDireita: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
+  itemMenuTitulo: { color: C.texto, fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  itemMenuDireita: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   badgePlano: {
-    backgroundColor: '#0284c7',
-    color: '#ffffff',
+    backgroundColor: C.superficieAlta,
+    color: C.textoSec,
     fontSize: 11,
-    fontWeight: 'bold',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10
+    fontWeight: '700',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    maxWidth: 140
   },
+
   botaoSair: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a1419',
+    backgroundColor: alfa(C.perigo, 0.06),
     borderRadius: 16,
-    paddingVertical: 14,
-    marginTop: 24,
+    minHeight: 52,
+    marginTop: 28,
     borderWidth: 1,
-    borderColor: '#451a1a'
+    borderColor: alfa(C.perigo, 0.3)
   },
-  textoSair: {
-    color: '#f87171',
-    fontSize: 15,
-    fontWeight: '600'
-  }
+  textoSair: { color: C.perigo, fontSize: 15, fontWeight: '700' },
+
+  fundoModal: { flex: 1, backgroundColor: 'rgba(2, 8, 12, 0.8)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalSaida: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: C.superficie,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: C.bordaForte,
+    padding: 24,
+    gap: 14
+  },
+  modalIcone: { width: 46, height: 46, borderRadius: 15, backgroundColor: alfa(C.perigo, 0.12), alignItems: 'center', justifyContent: 'center' },
+  tituloModal: { color: C.texto, fontSize: 19, fontWeight: '800' },
+  mensagemSaida: { color: C.textoSec, fontSize: 15, lineHeight: 22 },
+  acoesSaida: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  botaoCancelar: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: C.bordaForte, alignItems: 'center', justifyContent: 'center' },
+  textoCancelar: { color: C.texto, fontSize: 15, fontWeight: '600' },
+  botaoConfirmarSaida: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: '#b91c1c', alignItems: 'center', justifyContent: 'center' },
+  textoConfirmarSaida: { color: '#ffffff', fontSize: 15, fontWeight: '700' }
 });

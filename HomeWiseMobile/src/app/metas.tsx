@@ -10,6 +10,12 @@ import { salvarPerfilFirestore } from '@/services/authService';
 import { mensagemErroLeituras, useHistoricoCentral } from '@/hooks/use-leituras-central';
 import AvisoFalhaLeituras, { SeloDesatualizado } from '@/components/AvisoFalhaLeituras';
 import { lerMeta, resumirConsumoMensal } from '@/utils/metas';
+import { C, LARGURA_MAXIMA, NUMEROS, alfa } from '@/constants/hw-tema';
+import CabecalhoTela from '@/components/hw/CabecalhoTela';
+import BotaoDestaque from '@/components/hw/BotaoDestaque';
+
+// Linha da meta no gráfico e na legenda (limite = âmbar)
+const COR_META = C.alerta;
 
 type Recurso = 'agua' | 'energia';
 const formatar = (valor: number) => valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -32,7 +38,7 @@ export default function MetasScreen() {
   const indisponivel = bruto.estado === 'erro' && !bruto.recebido;
   const resumo = resumirConsumoMensal(bruto.dados ?? [], recurso === 'agua' ? 'consumo_agua_litros' : 'energia_kwh');
   const unidade = recurso === 'agua' ? 'L' : 'kWh';
-  const cor = recurso === 'agua' ? '#22b7d4' : '#4ade80';
+  const cor = recurso === 'agua' ? C.agua : C.energia;
   const metaSalva = perfil?.metas_consumo?.[recurso];
   const meta = typeof metaSalva === 'number' && Number.isFinite(metaSalva) && metaSalva > 0 ? metaSalva : 0;
   const percentual = meta ? resumo.total / meta * 100 : 0;
@@ -84,48 +90,46 @@ export default function MetasScreen() {
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={s.conteudo} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Voltar ao perfil" style={s.icone} onPress={() => router.replace('/perfil')}><Ionicons name="arrow-back" size={20} color="#fff" /></TouchableOpacity>
-          <Text style={s.titulo}>Metas</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir alertas" style={s.icone} onPress={() => router.push('/alertas')}><Ionicons name="notifications-outline" size={20} color="#fff" /></TouchableOpacity>
+          <CabecalhoTela
+            titulo="Metas"
+            onVoltar={() => router.replace('/perfil')}
+            rotuloVoltar="Voltar ao perfil"
+            acao={{ icone: 'notifications-outline', rotulo: 'Abrir alertas', onPress: () => router.push('/alertas') }}
+          />
         </View>
-        <Text style={s.eyebrow}>SEU CONSUMO, SOB CONTROLE</Text>
-        <Text style={s.chamada}>Pequenas metas.{ '\n'}Grandes economias.</Text>
-        <Text style={s.subtitulo}>Acompanhe seus limites mensais de água e energia.</Text>
+        <View style={s.intro}>
+          <Text style={s.eyebrow}>SEU CONSUMO, SOB CONTROLE</Text>
+          <Text style={s.chamada}>Pequenas metas.{ '\n'}Grandes economias.</Text>
+          <Text style={s.subtitulo}>Acompanhe seus limites mensais de água e energia.</Text>
+        </View>
         <AvisoFalhaLeituras fontes={historicoCentral.fontes} onTentarNovamente={historicoCentral.tentarNovamente} />
         {!possuiPlus && (
           <View style={s.cardUpgrade}>
             <View style={s.upgradeTopo}>
-              <Ionicons name="lock-closed" size={18} color="#38bdf8" />
+              <Ionicons name="lock-closed" size={16} color={C.marca} />
               <Text style={s.upgradeBadge}>EXCLUSIVO PLANO PLUS E PREMIUM</Text>
             </View>
             <Text style={s.upgradeTitulo}>Desbloqueie Metas de Economia</Text>
             <Text style={s.upgradeTexto}>
               Defina limites personalizados de água e energia e acompanhe alertas de meta atingida assinando o plano HomeWise Plus.
             </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              style={s.botaoUpgrade}
-              onPress={() => router.push('/gerenciar-assinatura')}
-            >
-              <Text style={s.botaoUpgradeTexto}>Fazer upgrade para Plus</Text>
-              <Ionicons name="arrow-forward" size={16} color="#ffffff" />
-            </TouchableOpacity>
+            <BotaoDestaque rotulo="Fazer upgrade para Plus" style={{ marginTop: 6 }} onPress={() => router.push('/gerenciar-assinatura')} />
           </View>
         )}
         <View style={s.abas}>
-          {(['agua', 'energia'] as const).map(item => <TouchableOpacity key={item} accessibilityRole="tab" accessibilityState={{ selected: recurso === item }} style={[s.aba, recurso === item && s.abaAtiva]} onPress={() => setRecurso(item)}><Ionicons name={item === 'agua' ? 'water-outline' : 'flash-outline'} size={17} color={recurso === item ? '#fff' : '#64748b'} /><Text style={[s.textoAba, recurso === item && s.textoAtivo]}>{item === 'agua' ? 'Água' : 'Energia'}</Text></TouchableOpacity>)}
+          {(['agua', 'energia'] as const).map(item => <TouchableOpacity key={item} accessibilityRole="tab" accessibilityState={{ selected: recurso === item }} style={[s.aba, recurso === item && { backgroundColor: alfa(cor, 0.16), borderColor: alfa(cor, 0.5) }]} onPress={() => setRecurso(item)}><Ionicons name={item === 'agua' ? 'water-outline' : 'flash-outline'} size={17} color={recurso === item ? cor : C.textoTer} /><Text style={[s.textoAba, recurso === item && s.textoAtivo]}>{item === 'agua' ? 'Água' : 'Energia'}</Text></TouchableOpacity>)}
         </View>
         <View style={s.card}>
           <View style={s.linha}>
             <View><Text style={s.rotulo}>Meta mensal</Text><Text style={s.meta}>{meta ? `${formatar(meta)} ${unidade}` : 'Defina sua meta'}</Text></View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Editar meta mensal" onPress={abrirEditor} style={s.editar}><Ionicons name={possuiPlus ? 'pencil-outline' : 'lock-closed-outline'} size={15} color="#38bdf8" /><Text style={s.link}>{!possuiPlus ? 'Requer Plus' : meta ? 'Editar' : 'Definir'}</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Editar meta mensal" onPress={abrirEditor} style={s.editar}><Ionicons name={possuiPlus ? 'pencil-outline' : 'lock-closed-outline'} size={15} color={C.marca} /><Text style={s.link}>{!possuiPlus ? 'Requer Plus' : meta ? 'Editar' : 'Definir'}</Text></TouchableOpacity>
           </View>
           <Text style={s.mes}>{mes}</Text>
           {carregando ? <ActivityIndicator size="large" color={cor} style={s.carregando} /> : indisponivel ? <Text accessibilityRole="alert" style={s.erro}>{mensagemErroLeituras(bruto.erro)}</Text> : <>
             <View style={s.anel} accessibilityLabel={meta ? `${Math.round(percentual)}% da meta consumidos` : 'Meta não definida'}>
               <Svg width={152} height={152} viewBox="0 0 152 152">
-                <Circle cx={76} cy={76} r={58} fill="none" stroke="#183442" strokeWidth={10} />
-                {meta > 0 && percentual > 0 && <Circle cx={76} cy={76} r={58} fill="none" stroke={excedeu ? '#f87171' : cor} strokeWidth={10} strokeLinecap="round" strokeDasharray={`${circunferencia} ${circunferencia}`} strokeDashoffset={circunferencia * (1 - Math.min(percentual, 100) / 100)} rotation={-90} origin="76, 76" />}
+                <Circle cx={76} cy={76} r={58} fill="none" stroke={C.superficieAlta} strokeWidth={12} />
+                {meta > 0 && percentual > 0 && <Circle cx={76} cy={76} r={58} fill="none" stroke={excedeu ? C.perigo : cor} strokeWidth={12} strokeLinecap="round" strokeDasharray={`${circunferencia} ${circunferencia}`} strokeDashoffset={circunferencia * (1 - Math.min(percentual, 100) / 100)} rotation={-90} origin="76, 76" />}
               </Svg>
               <View style={s.centroAnel}><Text style={[s.percentual, excedeu && s.erro]}>{meta ? `${Math.round(percentual)}%` : '—'}</Text><Text style={s.legenda}>{meta ? 'da meta' : 'sem meta'}</Text></View>
             </View>
@@ -141,13 +145,13 @@ export default function MetasScreen() {
           {!carregando && !indisponivel && !semDados ? <>
             <Svg width="100%" height={210} viewBox="0 0 330 210" accessibilityLabel="Gráfico do consumo acumulado no mês">
               {[0, 0.5, 1].map(fracao => <ViewSvg key={fracao} valor={escala * fracao} y={y(escala * fracao)} />)}
-              {meta > 0 && <Line x1={44} x2={310} y1={y(meta)} y2={y(meta)} stroke="#7c92b4" strokeWidth={2} strokeDasharray="6 5" />}
+              {meta > 0 && <Line x1={44} x2={310} y1={y(meta)} y2={y(meta)} stroke={COR_META} strokeWidth={2} strokeDasharray="6 5" />}
               <Polyline points={`44,164 ${pontos}`} fill="none" stroke={cor} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" />
               {resumo.pontos.filter(p => p.medido).map(ponto => <Circle key={ponto.dia} cx={x(ponto.dia)} cy={y(ponto.valor)} r={3} fill={cor} />)}
-              {[1, 8, 15, 22, resumo.diasNoMes].map(dia => <SvgText key={dia} x={x(dia)} y={190} fill="#94a3b8" fontSize={11} textAnchor="middle">{dia}</SvgText>)}
+              {[1, 8, 15, 22, resumo.diasNoMes].map(dia => <SvgText key={dia} x={x(dia)} y={190} fill={C.textoTer} fontSize={11} textAnchor="middle">{dia}</SvgText>)}
             </Svg>
-            <View style={s.legendas}><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: cor }]} /><Text style={s.legenda}>Consumo</Text></View><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: '#7c92b4' }]} /><Text style={s.legenda}>Meta mensal</Text></View></View>
-          </> : <View style={s.vazio}><Ionicons name="stats-chart-outline" size={32} color="#3d6575" /><Text style={s.restante}>{carregando ? 'Carregando seu histórico...' : indisponivel ? 'Histórico indisponível no momento.' : 'Sua evolução aparecerá quando chegarem as primeiras leituras.'}</Text></View>}
+            <View style={s.legendas}><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: cor }]} /><Text style={s.legenda}>Consumo</Text></View><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: COR_META }]} /><Text style={s.legenda}>Meta mensal</Text></View></View>
+          </> : <View style={s.vazio}><Ionicons name="stats-chart-outline" size={32} color={C.bordaForte} /><Text style={s.restante}>{carregando ? 'Carregando seu histórico...' : indisponivel ? 'Histórico indisponível no momento.' : 'Sua evolução aparecerá quando chegarem as primeiras leituras.'}</Text></View>}
           <Text style={s.nota}>Calculado a partir do maior consumo diário registrado. Dias sem leituras não acrescentam consumo.</Text>
         </View>
       </ScrollView>
@@ -158,7 +162,7 @@ export default function MetasScreen() {
               <Text accessibilityRole="header" style={s.titulo}>Meta mensal de {editando === 'agua' ? 'água' : 'energia'}</Text>
               <Text style={s.subtitulo}>Quanto você quer consumir no máximo por mês?</Text>
               <Text style={s.rotulo}>Limite em {editando === 'agua' ? 'litros (L)' : 'kWh'}</Text>
-              <TextInput accessibilityLabel="Valor da meta mensal" style={s.input} value={valor} onChangeText={setValor} keyboardType="decimal-pad" placeholder={editando === 'agua' ? 'Ex.: 9000' : 'Ex.: 250'} placeholderTextColor="#64748b" editable={!salvando} maxLength={20} />
+              <TextInput accessibilityLabel="Valor da meta mensal" style={s.input} value={valor} onChangeText={setValor} keyboardType="decimal-pad" placeholder={editando === 'agua' ? 'Ex.: 9000' : 'Ex.: 250'} placeholderTextColor={C.textoTer} editable={!salvando} maxLength={20} returnKeyType="done" onSubmitEditing={() => void salvar()} />
               {!!erro && <Text accessibilityRole="alert" style={s.erro}>{erro}</Text>}
               <TouchableOpacity accessibilityRole="button" disabled={salvando} style={[s.salvar, salvando && { opacity: 0.6 }]} onPress={() => void salvar()}>{salvando ? <ActivityIndicator color="#fff" /> : <Text style={s.textoAtivo}>Salvar meta</Text>}</TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" disabled={salvando} style={s.cancelar} onPress={() => setEditando(null)}><Text style={s.legenda}>Cancelar</Text></TouchableOpacity>
@@ -171,55 +175,52 @@ export default function MetasScreen() {
 }
 
 function ViewSvg({ valor, y }: { valor: number; y: number }) {
-  return <><Line x1={44} x2={310} y1={y} y2={y} stroke="#183442" strokeWidth={1} /><SvgText x={36} y={y + 4} fill="#94a3b8" fontSize={10} textAnchor="end">{valor >= 1000 ? `${formatar(valor / 1000)}k` : formatar(valor)}</SvgText></>;
+  return <><Line x1={44} x2={310} y1={y} y2={y} stroke={C.bordaSuave} strokeWidth={1} /><SvgText x={36} y={y + 4} fill={C.textoTer} fontSize={10} textAnchor="end">{valor >= 1000 ? `${formatar(valor / 1000)}k` : formatar(valor)}</SvgText></>;
 }
 
 const s = StyleSheet.create({
-  tela: { flex: 1, backgroundColor: '#07131b' },
-  conteudo: { padding: 20, paddingTop: 12, paddingBottom: 32, gap: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  icone: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0c202d', borderWidth: 1, borderColor: '#1e3a4f', alignItems: 'center', justifyContent: 'center' },
-  titulo: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  eyebrow: { color: '#38bdf8', fontSize: 10, letterSpacing: 1.8, fontWeight: '700' },
-  chamada: { color: '#edf4ff', fontSize: 28, lineHeight: 34, fontWeight: '800', marginTop: -4 },
-  subtitulo: { color: '#94a3b8', fontSize: 14, lineHeight: 21 },
-  abas: { flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: '#0a1a24' },
-  aba: { flex: 1, flexDirection: 'row', gap: 8, padding: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  abaAtiva: { backgroundColor: '#0284c7' },
-  textoAba: { color: '#64748b', fontWeight: '600' },
-  textoAtivo: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  card: { backgroundColor: '#0b1d28', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#1e3a4b' },
+  tela: { flex: 1, backgroundColor: C.fundo },
+  conteudo: { padding: 20, paddingTop: 12, paddingBottom: 40, gap: 16, width: '100%', maxWidth: LARGURA_MAXIMA, alignSelf: 'center' },
+  header: { marginBottom: -20 },
+  titulo: { color: C.texto, fontSize: 16, fontWeight: '700' },
+  intro: { gap: 8, paddingVertical: 4 },
+  eyebrow: { color: C.marca, fontSize: 10.5, letterSpacing: 1.8, fontWeight: '800' },
+  chamada: { color: C.texto, fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8 },
+  subtitulo: { color: C.textoSec, fontSize: 14, lineHeight: 21 },
+  abas: { flexDirection: 'row', padding: 4, gap: 4, borderRadius: 14, backgroundColor: C.superficie, borderWidth: 1, borderColor: C.bordaSuave },
+  aba: { flex: 1, flexDirection: 'row', gap: 8, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
+  textoAba: { color: C.textoTer, fontWeight: '700' },
+  textoAtivo: { color: C.texto, fontWeight: '700', fontSize: 14 },
+  card: { backgroundColor: C.superficie, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.borda },
   linha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  rotulo: { color: '#94a3b8', fontSize: 13, marginBottom: 5 },
-  meta: { color: '#fff', fontSize: 21, fontWeight: '700' },
-  editar: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12 },
-  link: { color: '#38bdf8', fontSize: 13, fontWeight: '600' },
-  mes: { color: '#64748b', fontSize: 12, marginTop: 8 },
-  anel: { width: 152, height: 152, alignSelf: 'center', marginTop: 20, marginBottom: 12 },
+  rotulo: { color: C.textoSec, fontSize: 13, marginBottom: 5 },
+  meta: { color: C.texto, fontSize: 22, fontWeight: '800', letterSpacing: -0.4, ...NUMEROS },
+  editar: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 999, backgroundColor: alfa(C.marca, 0.1), borderWidth: 1, borderColor: alfa(C.marca, 0.3) },
+  link: { color: C.marca, fontSize: 13, fontWeight: '700' },
+  mes: { color: C.textoTer, fontSize: 12, marginTop: 8, textTransform: 'capitalize' },
+  anel: { width: 152, height: 152, alignSelf: 'center', marginTop: 20, marginBottom: 14 },
   centroAnel: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  percentual: { color: '#fff', fontSize: 30, fontWeight: '800' },
-  legenda: { color: '#94a3b8', fontSize: 12 },
-  consumo: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  restante: { color: '#94a3b8', textAlign: 'center', fontSize: 14, lineHeight: 21, marginTop: 8 },
-  aviso: { color: '#64748b', fontSize: 12, textAlign: 'center', marginTop: 12 },
-  erro: { color: '#f87171', fontSize: 13, lineHeight: 20 },
+  percentual: { color: C.texto, fontSize: 32, fontWeight: '800', letterSpacing: -0.8, ...NUMEROS },
+  legenda: { color: C.textoSec, fontSize: 12 },
+  consumo: { color: C.texto, fontSize: 18, fontWeight: '700', textAlign: 'center', ...NUMEROS },
+  restante: { color: C.textoSec, textAlign: 'center', fontSize: 14, lineHeight: 21, marginTop: 8 },
+  aviso: { color: C.textoTer, fontSize: 12, textAlign: 'center', marginTop: 12 },
+  erro: { color: C.perigo, fontSize: 13, lineHeight: 20 },
   carregando: { marginVertical: 56 },
   legendas: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
   itemLegenda: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   traco: { width: 20, height: 3, borderRadius: 2 },
   vazio: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  nota: { color: '#64748b', fontSize: 11, lineHeight: 17, marginTop: 20 },
-  fundoModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' },
+  nota: { color: C.textoTer, fontSize: 11.5, lineHeight: 17, marginTop: 20 },
+  fundoModal: { flex: 1, backgroundColor: 'rgba(2, 8, 12, 0.8)' },
   scrollModal: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  modal: { backgroundColor: '#0b1d28', borderRadius: 20, borderWidth: 1, borderColor: '#1e3a4b', padding: 24, gap: 16, width: '100%', maxWidth: 460, alignSelf: 'center' },
-  input: { backgroundColor: '#07131b', borderColor: '#1e3a4f', borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 20, color: '#fff' },
-  salvar: { backgroundColor: '#0284c7', borderRadius: 12, padding: 16, alignItems: 'center' },
-  cancelar: { padding: 10, alignItems: 'center' },
-  cardUpgrade: { backgroundColor: '#0c2738', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#0284c7', gap: 8 },
+  modal: { backgroundColor: C.superficie, borderRadius: 24, borderWidth: 1, borderColor: C.bordaForte, padding: 24, gap: 16, width: '100%', maxWidth: 460, alignSelf: 'center' },
+  input: { backgroundColor: C.fundo, borderColor: C.bordaForte, borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 20, color: C.texto, ...NUMEROS },
+  salvar: { backgroundColor: C.marcaForte, borderRadius: 14, minHeight: 52, padding: 16, alignItems: 'center', justifyContent: 'center' },
+  cancelar: { padding: 10, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  cardUpgrade: { backgroundColor: C.superficieAlta, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: C.borda, gap: 8 },
   upgradeTopo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  upgradeBadge: { color: '#38bdf8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  upgradeTitulo: { color: '#ffffff', fontSize: 17, fontWeight: '700' },
-  upgradeTexto: { color: '#cbd5e1', fontSize: 13, lineHeight: 19 },
-  botaoUpgrade: { marginTop: 6, backgroundColor: '#0284c7', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  botaoUpgradeTexto: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  upgradeBadge: { color: C.marca, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  upgradeTitulo: { color: C.texto, fontSize: 17, fontWeight: '700' },
+  upgradeTexto: { color: C.textoSec, fontSize: 13, lineHeight: 19 },
 });

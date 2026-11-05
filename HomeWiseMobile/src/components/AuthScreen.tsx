@@ -80,7 +80,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} resizeMode="cover">
+            <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} imageStyle={styles.heroImage} resizeMode="cover">
               <View style={styles.shade} />
               <TouchableOpacity disabled={busy} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => panel.close(() => selectEntry(null))}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>
               <HomeWiseLogo compact />
@@ -98,11 +98,11 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
               <>
                 <Text style={styles.label}>Nome completo</Text>
                 <View style={[styles.fieldRow, focused === 'nome' && styles.focused]}>
-                  <Ionicons name="person-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+                  <Ionicons name="person-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.fieldInput}
                     placeholder="Seu nome"
-                    placeholderTextColor="#95a5bd"
+                    placeholderTextColor="#7f97a6"
                     value={nome}
                     onChangeText={setNome}
                     onFocus={() => setFocused('nome')}
@@ -119,13 +119,13 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {/* Campo E-mail */}
             <Text style={styles.label}>E-mail</Text>
             <View style={[styles.fieldRow, focused === 'email' && styles.focused]}>
-              <Ionicons name="mail-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+              <Ionicons name="mail-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
               <TextInput
                 ref={emailInput}
                 style={styles.fieldInput}
                 accessibilityLabel="E-mail"
                 placeholder="voce@exemplo.com"
-                placeholderTextColor="#95a5bd"
+                placeholderTextColor="#7f97a6"
                 value={email}
                 onChangeText={setEmail}
                 onFocus={() => setFocused('email')}
@@ -144,14 +144,14 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {/* Campo Código da Central (Apenas Cadastro) */}
             {registering && (
               <>
-                <Text style={styles.label}>Código da Central (opcional)</Text>
+                <Text style={styles.label}>Código da Central (opcional, pode vincular depois)</Text>
                 <View style={[styles.fieldRow, focused === 'dispositivo' && styles.focused]}>
-                  <Ionicons name="hardware-chip-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+                  <Ionicons name="hardware-chip-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
                   <TextInput
                     ref={dispositivoInput}
                     style={styles.fieldInput}
-                    placeholder="Ex: central_homewise_01 (ou vincule depois)"
-                    placeholderTextColor="#95a5bd"
+                    placeholder="Ex.: central_homewise_01"
+                    placeholderTextColor="#7f97a6"
                     value={dispositivo}
                     onChangeText={setDispositivo}
                     onFocus={() => setFocused('dispositivo')}
@@ -168,13 +168,13 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {/* Campo Senha */}
             <Text style={styles.label}>Senha</Text>
             <View style={[styles.fieldRow, focused === 'password' && styles.focused]}>
-              <Ionicons name="lock-closed-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+              <Ionicons name="lock-closed-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
               <TextInput
                 ref={passwordInput}
                 style={styles.fieldInput}
                 accessibilityLabel="Senha"
                 placeholder={registering ? 'Pelo menos 6 caracteres' : 'Sua senha'}
-                placeholderTextColor="#95a5bd"
+                placeholderTextColor="#7f97a6"
                 value={password}
                 onChangeText={setPassword}
                 onFocus={() => setFocused('password')}
@@ -189,7 +189,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                 onSubmitEditing={() => registering ? confirmationInput.current?.focus() : void submit()}
               />
               <TouchableOpacity style={styles.eye} accessibilityLabel={visible ? 'Ocultar senha' : 'Mostrar senha'} accessibilityRole="button" onPress={() => setVisible(!visible)}>
-                <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color="#8196b3" />
+                <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color="#7f97a6" />
               </TouchableOpacity>
             </View>
 
@@ -200,13 +200,13 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
               <>
                 <Text style={styles.label}>Confirmar senha</Text>
                 <View style={[styles.fieldRow, focused === 'confirmation' && styles.focused]}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+                  <Ionicons name="lock-closed-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
                   <TextInput
                     ref={confirmationInput}
                     style={styles.fieldInput}
                     accessibilityLabel="Confirmar senha"
                     placeholder="Repita sua senha"
-                    placeholderTextColor="#95a5bd"
+                    placeholderTextColor="#7f97a6"
                     value={confirmation}
                     onChangeText={setConfirmation}
                     onFocus={() => setFocused('confirmation')}
@@ -259,7 +259,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             )}
 
             <View style={styles.security}>
-              <Ionicons name="shield-checkmark-outline" size={14} color="#7992b3" />
+              <Ionicons name="shield-checkmark-outline" size={14} color="#7f97a6" />
               <Text style={styles.securityText}>Seu acesso protegido, sua casa conectada.</Text>
             </View>
 
@@ -273,33 +273,34 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#091321' },
+  container: { flex: 1, backgroundColor: '#07131b' },
   scroll: { flexGrow: 1 },
-  card: { flexGrow: 1, width: '100%', backgroundColor: '#091321' },
-  hero: { height: 210, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', paddingBottom: 16 },
-  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
-  brand: { color: '#fff', fontSize: 21, fontWeight: '600', marginTop: 5 },
-  form: { flexGrow: 1, padding: 28, paddingTop: 16, backgroundColor: '#101f33', marginTop: -28, borderTopLeftRadius: 34, borderTopRightRadius: 34 },
-  formContent: { width: '100%', maxWidth: 460, alignSelf: 'center' },
-  handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#3d5878', alignSelf: 'center', marginBottom: 22 },
-  back: { position: 'absolute', left: 16, top: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  eyebrow: { color: '#82baff', fontSize: 9, fontWeight: '700', letterSpacing: 1.8, textAlign: 'center' },
-  title: { color: '#f0f6ff', fontSize: 27, fontWeight: '800', letterSpacing: -0.8, marginTop: 10, textAlign: 'center' },
-  subtitle: { color: '#a0b3ce', lineHeight: 21, marginTop: 9, marginBottom: 8, textAlign: 'center', fontSize: 13 },
-  label: { color: '#c0d1e8', fontSize: 12, fontWeight: '600', marginBottom: 8, marginTop: 16 },
-  input: { color: '#f0f6ff', backgroundColor: '#192c45', borderWidth: 1, borderColor: '#29415f', borderRadius: 14, padding: 15, fontSize: 15, minHeight: 54 },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#192c45', borderWidth: 1, borderColor: '#29415f', borderRadius: 14 },
+  card: { flexGrow: 1, width: '100%', backgroundColor: '#07131b' },
+  hero: { height: 220, backgroundColor: '#050e14', justifyContent: 'center', alignItems: 'center', paddingBottom: 18 },
+  heroImage: { width: '100%', height: '100%' },
+  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(5, 14, 20, 0.55)' },
+  brand: { color: '#f1f7fa', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 6 },
+  form: { flexGrow: 1, padding: 26, paddingTop: 14, backgroundColor: '#0b1c27', marginTop: -30, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: '#173244' },
+  formContent: { width: '100%', maxWidth: 440, alignSelf: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#21465c', alignSelf: 'center', marginBottom: 22 },
+  back: { position: 'absolute', left: 16, top: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(11, 28, 39, 0.75)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.12)', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
+  eyebrow: { color: '#22b7d4', fontSize: 10, fontWeight: '800', letterSpacing: 1.8, textAlign: 'center' },
+  title: { color: '#f1f7fa', fontSize: 28, fontWeight: '800', letterSpacing: -0.8, marginTop: 10, textAlign: 'center' },
+  subtitle: { color: '#9db1bd', lineHeight: 21, marginTop: 8, marginBottom: 8, textAlign: 'center', fontSize: 13.5 },
+  label: { color: '#9db1bd', fontSize: 12.5, fontWeight: '600', marginBottom: 8, marginTop: 16 },
+  input: { color: '#f1f7fa', backgroundColor: '#07131b', borderWidth: 1, borderColor: '#173244', borderRadius: 14, padding: 15, fontSize: 15, minHeight: 54 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#07131b', borderWidth: 1, borderColor: '#173244', borderRadius: 14 },
   fieldIcon: { marginLeft: 15 },
-  fieldInput: { flex: 1, minWidth: 0, color: '#f0f6ff', paddingHorizontal: 12, paddingVertical: 15, fontSize: 15, minHeight: 54 },
-  focused: { borderColor: '#77b0ff', backgroundColor: '#203c60' },
+  fieldInput: { flex: 1, minWidth: 0, color: '#f1f7fa', paddingHorizontal: 12, paddingVertical: 15, fontSize: 15, minHeight: 54 },
+  focused: { borderColor: '#22b7d4', backgroundColor: '#050e14' },
   eye: { width: 46, minHeight: 50, justifyContent: 'center', alignItems: 'center' },
-  error: { color: '#ffb0a3', backgroundColor: '#3a2526', padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 21, marginTop: 16 },
-  button: { backgroundColor: '#2563eb', borderRadius: 28, minHeight: 54, flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  error: { color: '#fca5a5', backgroundColor: '#261414', borderWidth: 1, borderColor: '#7f1d1d', padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 20, marginTop: 16 },
+  button: { backgroundColor: '#0a7d96', borderRadius: 16, minHeight: 54, flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  buttonText: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
   disabled: { opacity: 0.6 },
-  forgot: { color: '#82baff', fontSize: 12, textAlign: 'right', paddingVertical: 12, fontWeight: '500' },
-  footer: { color: '#8b9ab1', fontSize: 12, textAlign: 'center', marginTop: 22 },
-  link: { color: '#8dc4ff', fontSize: 13, fontWeight: '600', textAlign: 'center', paddingVertical: 10, lineHeight: 22 },
-  security: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 16 },
-  securityText: { color: '#8b9ab1', fontSize: 10 },
+  forgot: { color: '#22b7d4', fontSize: 12.5, textAlign: 'right', paddingVertical: 12, fontWeight: '600' },
+  footer: { color: '#7f97a6', fontSize: 12.5, textAlign: 'center', marginTop: 22 },
+  link: { color: '#22b7d4', fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 10, lineHeight: 22 },
+  security: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 16 },
+  securityText: { color: '#7f97a6', fontSize: 11 },
 });

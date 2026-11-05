@@ -11,6 +11,7 @@ export default function PlanoAssinaturaScreen() {
   const { user, perfil, cancelarAssinatura } = useAuth();
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [erroCancelamento, setErroCancelamento] = useState('');
   const nome = (perfil?.nome || user?.displayName || user?.email?.split('@')[0] || 'você').split(' ')[0];
 
   const ativo = temPlanoAtivo(perfil?.plano, perfil?.status_assinatura);
@@ -18,10 +19,14 @@ export default function PlanoAssinaturaScreen() {
   const cicloAtual = perfil?.ciclo_assinatura === 'anual' ? 'anual' : 'mensal';
 
   async function handleCancelar() {
+    if (cancelando) return;
     setCancelando(true);
+    setErroCancelamento('');
     try {
-      await cancelarAssinatura();
-      setConfirmandoCancelamento(false);
+      // cancelarAssinatura() devolve false quando não consegue salvar: o modal continua aberto com o erro
+      const ok = await cancelarAssinatura();
+      if (ok) setConfirmandoCancelamento(false);
+      else setErroCancelamento('Não foi possível cancelar a assinatura. Verifique sua conexão e tente novamente.');
     } finally {
       setCancelando(false);
     }
@@ -40,7 +45,7 @@ export default function PlanoAssinaturaScreen() {
       <View style={[s.card, s.featured]}>
         <View style={s.cardTop}>
           <View style={s.icon}>
-            <Ionicons name={planoAtual ? planoAtual.icone : 'layers-outline'} size={24} color="#38bdf8" />
+            <Ionicons name={planoAtual ? planoAtual.icone : 'layers-outline'} size={24} color="#22b7d4" />
           </View>
           <View style={[s.badge, planoAtual && styles.badgeAtivo]}>
             <Text style={[s.badgeText, planoAtual && { color: '#4ade80' }]}>{planoAtual ? `PLANO ATIVO • ${cicloAtual.toUpperCase()}` : 'SEM PLANO'}</Text>
@@ -70,7 +75,7 @@ export default function PlanoAssinaturaScreen() {
           <TouchableOpacity
             accessibilityRole="button"
             style={styles.cancelButton}
-            onPress={() => setConfirmandoCancelamento(true)}
+            onPress={() => { setErroCancelamento(''); setConfirmandoCancelamento(true); }}
           >
             <Text style={styles.cancelButtonText}>Cancelar assinatura</Text>
           </TouchableOpacity>
@@ -108,7 +113,7 @@ export default function PlanoAssinaturaScreen() {
         );
       })}
       <View style={s.note}>
-        <Ionicons name="shield-checkmark-outline" size={18} color="#38bdf8" />
+        <Ionicons name="shield-checkmark-outline" size={18} color="#22b7d4" />
         <Text style={s.noteText}>Sem fidelidade: altere ou cancele sua assinatura quando quiser pelo app ou pelo site.</Text>
       </View>
 
@@ -120,12 +125,14 @@ export default function PlanoAssinaturaScreen() {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalBox} accessibilityViewIsModal>
-            <Text style={styles.modalTitle}>Cancelar assinatura?</Text>
+            <Text accessibilityRole="header" style={styles.modalTitle}>Cancelar assinatura?</Text>
             <Text style={styles.modalDesc}>
               Ao cancelar, recursos exclusivos como metas mensais e relatórios anuais voltarão a ficar restritos. Você pode reativar quando quiser.
             </Text>
+            {!!erroCancelamento && <Text accessibilityRole="alert" style={styles.modalErro}>{erroCancelamento}</Text>}
             <View style={styles.modalActions}>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalKeepBtn}
                 disabled={cancelando}
                 onPress={() => setConfirmandoCancelamento(false)}
@@ -133,6 +140,8 @@ export default function PlanoAssinaturaScreen() {
                 <Text style={styles.modalKeepText}>Manter plano</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ disabled: cancelando, busy: cancelando }}
                 style={styles.modalCancelBtn}
                 disabled={cancelando}
                 onPress={() => void handleCancelar()}
@@ -172,7 +181,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(2, 8, 12, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -180,10 +189,10 @@ const styles = StyleSheet.create({
   modalBox: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#0b1d28',
+    backgroundColor: '#0b1c27',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     padding: 24,
     gap: 14,
   },
@@ -192,8 +201,9 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '700',
   },
+  modalErro: { color: '#fca5a5', fontSize: 13, lineHeight: 19 },
   modalDesc: {
-    color: '#94aab4',
+    color: '#9db1bd',
     fontSize: 14,
     lineHeight: 21,
   },
@@ -207,9 +217,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 11,
     borderRadius: 10,
-    backgroundColor: '#0f2b3c',
+    backgroundColor: '#0f2431',
     borderWidth: 1,
-    borderColor: '#164e63',
+    borderColor: '#21465c',
   },
   modalKeepText: {
     color: '#22b7d4',

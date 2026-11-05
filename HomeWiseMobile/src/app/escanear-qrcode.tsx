@@ -1,5 +1,5 @@
 import { showAlert } from '@/utils/alert';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,16 +7,43 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMovimentoReduzido } from '@/hooks/use-movimento-reduzido';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SCAN_BOX_SIZE = Math.min(SCREEN_WIDTH * 0.72, 280);
+
+/** Linha de leitura que percorre a moldura; parada quando há movimento reduzido ou durante o salvamento. */
+function LinhaLeitura({ ativa }: { ativa: boolean }) {
+  const reduzido = useMovimentoReduzido();
+  const [posicao] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (!ativa || reduzido) { posicao.setValue(0.5); return; }
+    const animacao = Animated.loop(Animated.sequence([
+      Animated.timing(posicao, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(posicao, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== 'web' })
+    ]));
+    animacao.start();
+    return () => animacao.stop();
+  }, [ativa, reduzido, posicao]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.linhaLeitura, {
+        transform: [{ translateY: posicao.interpolate({ inputRange: [0, 1], outputRange: [16, SCAN_BOX_SIZE - 18] }) }]
+      }]}
+    />
+  );
+}
 
 function extrairCodigoCentral(dadosBrutos: string): string {
   const limpo = dadosBrutos.trim();
@@ -43,7 +70,7 @@ export default function EscanearQRCodeScreen() {
   if (!permission) {
     return (
       <View style={[styles.container, styles.centralizado]}>
-        <ActivityIndicator color="#22d3ee" size="large" />
+        <ActivityIndicator color="#22b7d4" size="large" />
       </View>
     );
   }
@@ -54,17 +81,17 @@ export default function EscanearQRCodeScreen() {
       <SafeAreaView style={[styles.container, styles.centralizado, { paddingHorizontal: 32 }]}>
         <StatusBar barStyle="light-content" />
         <View style={styles.iconePermissao}>
-          <Ionicons name="camera-outline" size={48} color="#22d3ee" />
+          <Ionicons name="camera-outline" size={48} color="#22b7d4" />
         </View>
         <Text style={styles.tituloPermissao}>Acesso à Câmera</Text>
         <Text style={styles.textoPermissao}>
           Para ler o QR Code da sua Central HomeWise e pareá-la automaticamente com sua conta, precisamos de permissão para utilizar a câmera do seu aparelho.
         </Text>
-        <TouchableOpacity style={styles.botaoPermissao} activeOpacity={0.8} onPress={requestPermission}>
+        <TouchableOpacity style={styles.botaoPermissao} activeOpacity={0.85} accessibilityRole="button" onPress={requestPermission}>
           <Ionicons name="shield-checkmark" size={18} color="#07131b" style={{ marginRight: 8 }} />
           <Text style={styles.textoBotaoPermissao}>Permitir Acesso à Câmera</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.botaoVoltarSimples} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
+        <TouchableOpacity style={styles.botaoVoltarSimples} accessibilityRole="button" onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={styles.textoVoltarSimples}>Voltar</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -128,7 +155,7 @@ export default function EscanearQRCodeScreen() {
       <SafeAreaView style={styles.overlay}>
         {/* Barra Superior */}
         <View style={styles.topoBarra}>
-          <TouchableOpacity style={styles.botaoCircular} activeOpacity={0.7} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
+          <TouchableOpacity style={styles.botaoCircular} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Fechar leitor" onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Ionicons name="close" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloTopo}>Escanear QR Code</Text>
@@ -136,8 +163,11 @@ export default function EscanearQRCodeScreen() {
             style={[styles.botaoCircular, tochaAtiva && styles.botaoCircularAtivo]}
             activeOpacity={0.7}
             onPress={() => setTochaAtiva(!tochaAtiva)}
+            accessibilityRole="button"
+            accessibilityLabel={tochaAtiva ? "Desligar lanterna" : "Ligar lanterna"}
+            accessibilityState={{ selected: tochaAtiva }}
           >
-            <Ionicons name={tochaAtiva ? 'flash' : 'flash-off'} size={20} color={tochaAtiva ? '#22d3ee' : '#ffffff'} />
+            <Ionicons name={tochaAtiva ? 'flash' : 'flash-off'} size={20} color={tochaAtiva ? '#22b7d4' : '#ffffff'} />
           </TouchableOpacity>
         </View>
 
@@ -149,10 +179,11 @@ export default function EscanearQRCodeScreen() {
             <View style={[styles.cantoneira, styles.cantoSuperiorDireito]} />
             <View style={[styles.cantoneira, styles.cantoInferiorEsquerdo]} />
             <View style={[styles.cantoneira, styles.cantoInferiorDireito]} />
+            <LinhaLeitura ativa={!salvando} />
 
             {salvando && (
               <View style={styles.overlaySalvando}>
-                <ActivityIndicator color="#22d3ee" size="large" />
+                <ActivityIndicator color="#22b7d4" size="large" />
                 <Text style={styles.textoSalvando}>Vinculando central...</Text>
               </View>
             )}
@@ -171,10 +202,11 @@ export default function EscanearQRCodeScreen() {
 
           <TouchableOpacity
             style={styles.botaoDigitarManual}
+            accessibilityRole="button"
             activeOpacity={0.7}
             onPress={() => router.replace('/editar-perfil')}
           >
-            <Ionicons name="create-outline" size={16} color="#94a3b8" style={{ marginRight: 6 }} />
+            <Ionicons name="create-outline" size={16} color="#9db1bd" style={{ marginRight: 6 }} />
             <Text style={styles.textoDigitarManual}>Prefere digitar o código manualmente?</Text>
           </TouchableOpacity>
         </View>
@@ -220,8 +252,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.15)'
   },
   botaoCircularAtivo: {
-    backgroundColor: 'rgba(34, 211, 238, 0.25)',
-    borderColor: '#22d3ee'
+    backgroundColor: 'rgba(34, 183, 212, 0.25)',
+    borderColor: '#22b7d4'
   },
   conteinerCentro: {
     alignItems: 'center',
@@ -239,7 +271,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 32,
     height: 32,
-    borderColor: '#22d3ee'
+    borderColor: '#22b7d4'
   },
   cantoSuperiorEsquerdo: {
     top: 0,
@@ -277,7 +309,7 @@ const styles = StyleSheet.create({
     borderRadius: 8
   },
   textoSalvando: {
-    color: '#22d3ee',
+    color: '#22b7d4',
     marginTop: 10,
     fontSize: 14,
     fontWeight: '600'
@@ -295,7 +327,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     marginBottom: 8,
     gap: 8
   },
@@ -305,7 +337,7 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   subDica: {
-    color: '#94a3b8',
+    color: '#9db1bd',
     fontSize: 12,
     textAlign: 'center',
     marginBottom: 16
@@ -317,20 +349,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16
   },
   textoDigitarManual: {
-    color: '#94a3b8',
+    color: '#9db1bd',
     fontSize: 13,
     textDecorationLine: 'underline'
   },
   iconePermissao: {
     width: 90,
     height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(34, 211, 238, 0.1)',
+    borderRadius: 30,
+    backgroundColor: 'rgba(34, 183, 212, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.3)'
+    borderColor: 'rgba(34, 183, 212, 0.3)'
   },
   tituloPermissao: {
     color: '#ffffff',
@@ -340,21 +372,24 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   },
   textoPermissao: {
-    color: '#94a3b8',
+    color: '#9db1bd',
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
-    marginBottom: 28
+    marginBottom: 28,
+    maxWidth: 420
   },
   botaoPermissao: {
     flexDirection: 'row',
-    backgroundColor: '#22d3ee',
+    backgroundColor: '#22b7d4',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    maxWidth: 420,
+    minHeight: 52,
     marginBottom: 14
   },
   textoBotaoPermissao: {
@@ -365,8 +400,19 @@ const styles = StyleSheet.create({
   botaoVoltarSimples: {
     paddingVertical: 10
   },
+  linhaLeitura: {
+    position: 'absolute',
+    top: 0,
+    left: 14,
+    right: 14,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#22b7d4',
+    opacity: 0.85,
+    boxShadow: '0 0 12px rgba(34, 183, 212, 0.9)'
+  },
   textoVoltarSimples: {
-    color: '#64748b',
+    color: '#7f97a6',
     fontSize: 14
   }
 });

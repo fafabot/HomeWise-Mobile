@@ -35,7 +35,7 @@ export default function WelcomeScreen() {
             </TouchableOpacity>
             </Animated.View>
             {!user && <TouchableOpacity disabled={transitioning} style={styles.secondary} accessibilityRole="button" onPress={() => enter('cadastro')}><Text style={styles.secondaryText}>Criar conta</Text></TouchableOpacity>}
-            <View style={styles.footer}><Ionicons name="leaf-outline" size={14} color="#82baff" /><Text style={styles.footerText}>Um novo jeito de viver sua casa.</Text></View>
+            <View style={styles.footer}><Ionicons name="leaf-outline" size={14} color="#22b7d4" /><Text style={styles.footerText}>Um novo jeito de viver sua casa.</Text></View>
           </Animated.View>
         </View>
       </ScrollView>
@@ -44,24 +44,24 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#091321' },
+  container: { flex: 1, backgroundColor: '#07131b' },
   scroll: { flexGrow: 1 },
-  card: { flexGrow: 1, width: '100%', backgroundColor: '#091321' },
-  hero: { height: 435, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', paddingTop: 8, paddingBottom: 38 },
-  heroImage: { opacity: 0.20 },
-  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.10)' },
+  card: { flexGrow: 1, width: '100%', backgroundColor: '#07131b' },
+  hero: { height: 435, backgroundColor: '#050e14', justifyContent: 'center', alignItems: 'center', paddingTop: 8, paddingBottom: 38 },
+  heroImage: { opacity: 0.22, width: '100%', height: '100%' },
+  shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(5, 14, 20, 0.2)' },
   brand: { alignItems: 'center', paddingHorizontal: 16 },
-  tagline: { color: '#edf4ff', fontSize: 19, fontWeight: '500', lineHeight: 27, letterSpacing: 0.1, marginTop: 10, textAlign: 'center' },
-  panel: { flexGrow: 1, backgroundColor: '#101f33', marginTop: -22, paddingHorizontal: 28, paddingTop: 17, paddingBottom: 28, borderTopLeftRadius: 42, borderTopRightRadius: 42, alignItems: 'center' },
-  handle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#3d5878', marginBottom: 22 },
-  eyebrow: { color: '#82baff', fontSize: 11, letterSpacing: 2.3, fontWeight: '700' },
-  title: { color: '#f0f6ff', fontSize: 40, fontWeight: '800', letterSpacing: -1.4, marginTop: 10, textAlign: 'center' },
-  subtitle: { color: '#a0b3ce', fontSize: 15, lineHeight: 25, textAlign: 'center', marginTop: 12, marginBottom: 27 },
-  primary: { width: '100%', minHeight: 56, borderRadius: 28, backgroundColor: '#2563eb', flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center', boxShadow: '0 6px 14px rgba(37, 99, 235, 0.18)' },
+  tagline: { color: '#d6e6ee', fontSize: 19, fontWeight: '500', lineHeight: 27, letterSpacing: 0.1, marginTop: 10, textAlign: 'center' },
+  panel: { flexGrow: 1, backgroundColor: '#0b1c27', marginTop: -24, paddingHorizontal: 28, paddingTop: 16, paddingBottom: 28, borderTopLeftRadius: 36, borderTopRightRadius: 36, borderTopWidth: 1, borderColor: '#173244', alignItems: 'center' },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#21465c', marginBottom: 22 },
+  eyebrow: { color: '#22b7d4', fontSize: 11, letterSpacing: 2.3, fontWeight: '800' },
+  title: { color: '#f1f7fa', fontSize: 40, fontWeight: '800', letterSpacing: -1.4, marginTop: 10, textAlign: 'center' },
+  subtitle: { color: '#9db1bd', fontSize: 15, lineHeight: 25, textAlign: 'center', marginTop: 12, marginBottom: 27 },
+  primary: { width: '100%', minHeight: 56, borderRadius: 18, backgroundColor: '#0a7d96', flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center', boxShadow: '0 8px 20px rgba(14, 154, 184, 0.22)' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  buttonContainer: { width: '100%' },
-  secondary: { width: '100%', minHeight: 56, borderRadius: 28, borderWidth: 1, borderColor: '#29415f', backgroundColor: '#192c45', justifyContent: 'center', alignItems: 'center', marginTop: 12 },
-  secondaryText: { color: '#c0d1e8', fontSize: 16, fontWeight: '600' },
+  buttonContainer: { width: '100%', maxWidth: 440 },
+  secondary: { width: '100%', maxWidth: 440, minHeight: 56, borderRadius: 18, borderWidth: 1, borderColor: '#21465c', backgroundColor: '#0f2431', justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  secondaryText: { color: '#d6e6ee', fontSize: 16, fontWeight: '600' },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 25 },
-  footerText: { color: '#8b9ab1', fontSize: 11 },
+  footerText: { color: '#7f97a6', fontSize: 11.5 },
 });

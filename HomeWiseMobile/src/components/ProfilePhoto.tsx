@@ -50,7 +50,7 @@ export default function ProfilePhoto({ nome, size = 80, disabled = false }: { no
           {foto ? <Image source={{ uri: foto }} style={styles.imagem} resizeMode="cover" /> : <Text style={styles.iniciais}>{iniciais}</Text>}
           {salvando && <View style={styles.overlay}><ActivityIndicator color="#fff" /></View>}
         </View>
-        <View style={styles.camera}><Ionicons name="camera" size={16} color="#fff" /></View>
+        <View style={styles.camera}><Ionicons name="camera" size={15} color="#07131b" /></View>
       </TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" disabled={disabled || salvando} onPress={escolherFoto} style={styles.link}>
         <Text style={styles.texto}>{salvando ? 'Salvando foto...' : foto ? 'Trocar foto' : 'Adicionar foto'}</Text>
@@ -62,12 +62,12 @@ export default function ProfilePhoto({ nome, size = 80, disabled = false }: { no
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', marginBottom: 12 },
-  avatar: { backgroundColor: '#0284c7', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatar: { backgroundColor: '#0e7490', borderWidth: 3, borderColor: 'rgba(34, 183, 212, 0.35)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   imagem: { width: '100%', height: '100%' },
   iniciais: { color: '#fff', fontSize: 28, fontWeight: '800' },
-  camera: { position: 'absolute', right: -3, bottom: 0, width: 30, height: 30, borderRadius: 15, backgroundColor: '#0ea5e9', borderWidth: 2, borderColor: '#07131b', alignItems: 'center', justifyContent: 'center' },
+  camera: { position: 'absolute', right: -3, bottom: 0, width: 30, height: 30, borderRadius: 15, backgroundColor: '#22b7d4', borderWidth: 3, borderColor: '#0b1c27', alignItems: 'center', justifyContent: 'center' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   link: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
-  texto: { color: '#38bdf8', fontSize: 13, fontWeight: '600' },
+  texto: { color: '#22b7d4', fontSize: 13, fontWeight: '700' },
   erro: { color: '#f87171', textAlign: 'center', marginTop: 8, fontSize: 12 },
 });

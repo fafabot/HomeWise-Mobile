@@ -20,7 +20,7 @@ export default function HomeWiseTabBar() {
   }
 
   return (
-    <View style={styles.tabContainer}>
+    <View style={styles.tabContainer} accessibilityRole="tablist">
       {tabs.map((tab) => {
         const isActive = pathname === tab.route || (tab.route === '/perfil' && pathname === '/metas');
         return (
@@ -28,13 +28,18 @@ export default function HomeWiseTabBar() {
             key={tab.route}
             style={styles.tabItem}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.name}
+            accessibilityState={{ selected: isActive }}
             onPress={() => router.push(tab.route as any)}
           >
-            <Ionicons
-              name={isActive ? tab.iconActive : tab.icon}
-              size={22}
-              color={isActive ? '#22b7d4' : '#64748b'}
-            />
+            <View style={[styles.iconWrap, isActive && styles.iconWrapActive]}>
+              <Ionicons
+                name={isActive ? tab.iconActive : tab.icon}
+                size={21}
+                color={isActive ? '#22b7d4' : '#7f97a6'}
+              />
+            </View>
             <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
               {tab.name}
             </Text>
@@ -50,24 +55,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#07131b',
     borderTopWidth: 1,
-    borderTopColor: '#132838',
-    paddingVertical: 10,
-    paddingBottom: 22,
+    borderTopColor: '#122a39',
+    paddingTop: 8,
+    paddingBottom: 20,
+    paddingHorizontal: 8,
     justifyContent: 'space-around',
     alignItems: 'center'
   },
   tabItem: {
     alignItems: 'center',
     flex: 1,
-    gap: 4
+    maxWidth: 120,
+    gap: 3,
+    minHeight: 48,
+    justifyContent: 'center'
+  },
+  iconWrap: {
+    width: 52,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  iconWrapActive: {
+    backgroundColor: 'rgba(34, 183, 212, 0.14)'
   },
   tabLabel: {
-    color: '#64748b',
+    color: '#7f97a6',
     fontSize: 11,
-    fontWeight: '500'
+    fontWeight: '600'
   },
   tabLabelActive: {
     color: '#22b7d4',
-    fontWeight: '700'
+    fontWeight: '800'
   }
 });
