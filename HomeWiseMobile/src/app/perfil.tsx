@@ -16,6 +16,7 @@ import { deslogarUsuario } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfilePhoto from '@/components/ProfilePhoto';
 import { authErrorMessage } from '@/services/authErrors';
+import { obterPlanoPorId, temPlanoAtivo } from '@/constants/planos';
 
 export default function PerfilScreen() {
   const router = useRouter();
@@ -27,6 +28,10 @@ export default function PerfilScreen() {
   const saidaEmAndamento = useRef(false);
   const nomeExibicao = perfil?.nome || usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
   const emailExibicao = usuario?.email || '';
+  const planoAtivo = temPlanoAtivo(perfil?.plano, perfil?.status_assinatura)
+    ? obterPlanoPorId(perfil?.plano)
+    : null;
+  const rotuloPlano = planoAtivo ? `HomeWise ${planoAtivo.nome}` : 'Sem plano';
 
   async function handleSair() {
     if (saidaEmAndamento.current) return;
@@ -82,7 +87,7 @@ export default function PerfilScreen() {
       id: 4,
       titulo: 'Plano e assinatura',
       icone: 'card-outline' as const,
-      badge: 'Sem plano',
+      badge: rotuloPlano,
       acao: () => router.push('/plano-assinatura')
     },
     {

@@ -23,6 +23,7 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { temAcessoPlus } from '@/constants/planos';
 import {
   montarBarrasPorPeriodo,
   calcularConsumoPorPeriodo,
@@ -31,8 +32,10 @@ import {
 
 export default function AguaScreen() {
   const router = useRouter();
-  const { dispositivoId } = useAuth();
+  const { perfil, dispositivoId } = useAuth();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
+  const [avisoUpgrade, setAvisoUpgrade] = useState(false);
+  const possuiPlus = temAcessoPlus(perfil?.plano, perfil?.status_assinatura);
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
@@ -129,18 +132,47 @@ export default function AguaScreen() {
 
         {/* Botoes de Periodo */}
         <View style={styles.periodoBarra}>
-          {(['dia', 'semana', 'mes', 'ano'] as const).map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[styles.periodoBotao, periodo === item && styles.periodoBotaoAtivo]}
-              onPress={() => setPeriodo(item)}
-            >
-              <Text style={[styles.periodoTexto, periodo === item && styles.periodoTextoAtivo]}>
-                {item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {(['dia', 'semana', 'mes', 'ano'] as const).map((item) => {
+            const restritoPlus = (item === 'mes' || item === 'ano') && !possuiPlus;
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[styles.periodoBotao, periodo === item && styles.periodoBotaoAtivo]}
+                onPress={() => {
+                  if (restritoPlus) {
+                    setAvisoUpgrade(true);
+                    return;
+                  }
+                  setAvisoUpgrade(false);
+                  setPeriodo(item);
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={[styles.periodoTexto, periodo === item && styles.periodoTextoAtivo]}>
+                    {item === 'mes' ? 'Mês' : item.charAt(0).toUpperCase() + item.slice(1)}
+                  </Text>
+                  {restritoPlus && <Ionicons name="lock-closed" size={11} color="#38bdf8" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+
+        {avisoUpgrade && !possuiPlus && (
+          <View style={styles.cardUpgrade}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="lock-closed" size={16} color="#38bdf8" />
+              <Text style={styles.upgradeTitulo}>Relatórios Mensais e Anuais (Plano Plus)</Text>
+            </View>
+            <Text style={styles.upgradeDesc}>
+              O plano Básico inclui relatórios diários e semanais. Faça upgrade para o HomeWise Plus para desbloquear o histórico completo de Mês e Ano.
+            </Text>
+            <TouchableOpacity style={styles.botaoUpgrade} onPress={() => router.push('/gerenciar-assinatura')}>
+              <Text style={styles.botaoUpgradeTexto}>Conhecer plano Plus</Text>
+              <Ionicons name="arrow-forward" size={15} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Card Principal de Agua Conectado ao YF-S201 */}
         <View style={styles.cardAguaPrincipal}>
@@ -390,6 +422,40 @@ const styles = StyleSheet.create({
   resumoValor: {
     color: '#ffffff',
     fontSize: 14,
+    fontWeight: 'bold'
+  },
+  cardUpgrade: {
+    backgroundColor: '#0c2738',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#0284c7',
+    marginBottom: 16,
+    gap: 8
+  },
+  upgradeTitulo: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  upgradeDesc: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18
+  },
+  botaoUpgrade: {
+    marginTop: 4,
+    backgroundColor: '#0284c7',
+    borderRadius: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6
+  },
+  botaoUpgradeTexto: {
+    color: '#ffffff',
+    fontSize: 13,
     fontWeight: 'bold'
   }
 });

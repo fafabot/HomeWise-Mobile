@@ -19,10 +19,16 @@ export interface DadosUsuario {
   email: string;
   dispositivo_id: string;
   telefone?: string;
+  cpf?: string;
   foto_perfil?: string;
   metas_consumo?: { agua?: number; energia?: number };
   residencia?: string;
   cep?: string;
+  plano?: 'basico' | 'plus' | 'premium' | null;
+  plano_nome?: string | null;
+  ciclo_assinatura?: 'mensal' | 'anual';
+  status_assinatura?: 'ativa' | 'cancelada' | 'inativa';
+  assinado_em?: any;
   atualizado_em?: any;
   criado_em?: any;
 }

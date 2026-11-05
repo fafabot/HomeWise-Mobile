@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '@/contexts/AuthContext';
+import { temAcessoPlus } from '@/constants/planos';
 import { salvarPerfilFirestore } from '@/services/authService';
 import { observarHistorico, type Leitura } from '@/services/leiturasService';
 import { lerMeta, resumirConsumoMensal } from '@/utils/metas';
@@ -44,8 +45,13 @@ export default function MetasScreen() {
   const y = (consumo: number) => 164 - consumo / escala * 132;
   const pontos = resumo.pontos.map(ponto => `${x(ponto.dia)},${y(ponto.valor)}`).join(' ');
   const circunferencia = 2 * Math.PI * 58;
+  const possuiPlus = temAcessoPlus(perfil?.plano, perfil?.status_assinatura);
 
   function abrirEditor() {
+    if (!possuiPlus) {
+      router.push('/gerenciar-assinatura');
+      return;
+    }
     setValor(meta ? String(meta).replace('.', ',') : '');
     setErro('');
     setEditando(recurso);
@@ -86,13 +92,33 @@ export default function MetasScreen() {
         <Text style={s.eyebrow}>SEU CONSUMO, SOB CONTROLE</Text>
         <Text style={s.chamada}>Pequenas metas.{ '\n'}Grandes economias.</Text>
         <Text style={s.subtitulo}>Acompanhe seus limites mensais de água e energia.</Text>
+        {!possuiPlus && (
+          <View style={s.cardUpgrade}>
+            <View style={s.upgradeTopo}>
+              <Ionicons name="lock-closed" size={18} color="#38bdf8" />
+              <Text style={s.upgradeBadge}>EXCLUSIVO PLANO PLUS E PREMIUM</Text>
+            </View>
+            <Text style={s.upgradeTitulo}>Desbloqueie Metas de Economia</Text>
+            <Text style={s.upgradeTexto}>
+              Defina limites personalizados de água e energia e acompanhe alertas de meta atingida assinando o plano HomeWise Plus.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={s.botaoUpgrade}
+              onPress={() => router.push('/gerenciar-assinatura')}
+            >
+              <Text style={s.botaoUpgradeTexto}>Fazer upgrade para Plus</Text>
+              <Ionicons name="arrow-forward" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={s.abas}>
           {(['agua', 'energia'] as const).map(item => <TouchableOpacity key={item} accessibilityRole="tab" accessibilityState={{ selected: recurso === item }} style={[s.aba, recurso === item && s.abaAtiva]} onPress={() => setRecurso(item)}><Ionicons name={item === 'agua' ? 'water-outline' : 'flash-outline'} size={17} color={recurso === item ? '#fff' : '#64748b'} /><Text style={[s.textoAba, recurso === item && s.textoAtivo]}>{item === 'agua' ? 'Água' : 'Energia'}</Text></TouchableOpacity>)}
         </View>
         <View style={s.card}>
           <View style={s.linha}>
             <View><Text style={s.rotulo}>Meta mensal</Text><Text style={s.meta}>{meta ? `${formatar(meta)} ${unidade}` : 'Defina sua meta'}</Text></View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Editar meta mensal" onPress={abrirEditor} style={s.editar}><Ionicons name="pencil-outline" size={15} color="#38bdf8" /><Text style={s.link}>{meta ? 'Editar' : 'Definir'}</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Editar meta mensal" onPress={abrirEditor} style={s.editar}><Ionicons name={possuiPlus ? 'pencil-outline' : 'lock-closed-outline'} size={15} color="#38bdf8" /><Text style={s.link}>{!possuiPlus ? 'Requer Plus' : meta ? 'Editar' : 'Definir'}</Text></TouchableOpacity>
           </View>
           <Text style={s.mes}>{mes}</Text>
           {carregando ? <ActivityIndicator size="large" color={cor} style={s.carregando} /> : falha === dispositivoId ? <Text accessibilityRole="alert" style={s.erro}>Não foi possível carregar o consumo. Verifique sua conexão.</Text> : <>
@@ -153,7 +179,7 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   icone: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0c202d', borderWidth: 1, borderColor: '#1e3a4f', alignItems: 'center', justifyContent: 'center' },
   titulo: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  eyebrow: { color: '#76d7cd', fontSize: 10, letterSpacing: 1.8, fontWeight: '700' },
+  eyebrow: { color: '#38bdf8', fontSize: 10, letterSpacing: 1.8, fontWeight: '700' },
   chamada: { color: '#edf4ff', fontSize: 28, lineHeight: 34, fontWeight: '800', marginTop: -4 },
   subtitulo: { color: '#94a3b8', fontSize: 14, lineHeight: 21 },
   abas: { flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: '#0a1a24' },
@@ -188,4 +214,11 @@ const s = StyleSheet.create({
   input: { backgroundColor: '#07131b', borderColor: '#1e3a4f', borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 20, color: '#fff' },
   salvar: { backgroundColor: '#0284c7', borderRadius: 12, padding: 16, alignItems: 'center' },
   cancelar: { padding: 10, alignItems: 'center' },
+  cardUpgrade: { backgroundColor: '#0c2738', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#0284c7', gap: 8 },
+  upgradeTopo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  upgradeBadge: { color: '#38bdf8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  upgradeTitulo: { color: '#ffffff', fontSize: 17, fontWeight: '700' },
+  upgradeTexto: { color: '#cbd5e1', fontSize: 13, lineHeight: 19 },
+  botaoUpgrade: { marginTop: 6, backgroundColor: '#0284c7', borderRadius: 10, paddingVertical: 11, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  botaoUpgradeTexto: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
 });
