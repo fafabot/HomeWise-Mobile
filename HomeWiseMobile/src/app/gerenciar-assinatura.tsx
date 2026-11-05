@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,6 +26,9 @@ import { PlanBenefits, PlanPrice, SubscriptionScreen, subscriptionStyles as s } 
 
 type MetodoPagamento = 'pix' | 'cartao';
 
+// Tempo em que a confirmação do pagamento simulado fica visível
+const DURACAO_CONFIRMACAO_MS = 5000;
+
 export default function GerenciarAssinaturaScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ checkout?: string }>();
@@ -38,6 +41,9 @@ export default function GerenciarAssinaturaScreen() {
   );
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<string>('');
+  const [mensagemErro, setMensagemErro] = useState(false);
+  // Cancelar é destrutivo: pede confirmação antes de chamar cancelarAssinatura()
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
 
   // Estados do modal de simulação de pagamento (Checkout)
   const [planoEmCheckout, setPlanoEmCheckout] = useState<Plano | null>(null);
@@ -49,6 +55,37 @@ export default function GerenciarAssinaturaScreen() {
   const [cvvCartao, setCvvCartao] = useState('');
   const [erroPagamento, setErroPagamento] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+
+  // Confirmação temporária do pagamento simulado: fica só em memória, some após 5 s
+  // e não reaparece ao reabrir ou recarregar a tela.
+  const [confirmacao, setConfirmacao] = useState('');
+  const temporizadorConfirmacao = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const montada = useRef(true);
+  useEffect(() => {
+    montada.current = true;
+    return () => {
+      montada.current = false;
+      if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
+      temporizadorConfirmacao.current = null;
+    };
+  }, []);
+
+  function mostrarConfirmacao(texto: string) {
+    // O pagamento pode terminar depois que a pessoa saiu da tela: nesse caso não cria temporizador
+    if (!montada.current) return;
+    if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
+    setConfirmacao(texto);
+    temporizadorConfirmacao.current = setTimeout(() => {
+      temporizadorConfirmacao.current = null;
+      setConfirmacao('');
+    }, DURACAO_CONFIRMACAO_MS);
+  }
+
+  function esconderConfirmacao() {
+    if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
+    temporizadorConfirmacao.current = null;
+    setConfirmacao('');
+  }
 
   const [cicloSincronizado, setCicloSincronizado] = useState(perfil?.ciclo_assinatura);
   if (cicloSincronizado !== perfil?.ciclo_assinatura) {
@@ -121,8 +158,11 @@ export default function GerenciarAssinaturaScreen() {
       const ok = await atualizarPlanoAssinatura(planoEmCheckout.id, ciclo);
       if (ok) {
         const metodoLabel = metodo === 'pix' ? 'PIX' : 'Cartão de Crédito';
-        setMensagem(
-          `Pagamento via ${metodoLabel} aprovado! Plano HomeWise ${planoEmCheckout.nome} (${ciclo}) ativado com sucesso.`
+        setMensagem('');
+        setMensagemErro(false);
+        setConfirmandoCancelamento(false);
+        mostrarConfirmacao(
+          `Plano HomeWise ${planoEmCheckout.nome} (${ciclo}) ativado. Pagamento via ${metodoLabel} simulado.`
         );
         setPlanoEmCheckout(null);
       } else {
@@ -138,12 +178,16 @@ export default function GerenciarAssinaturaScreen() {
     if (salvandoId) return;
     setSalvandoId('cancelar');
     setMensagem('');
+    setMensagemErro(false);
+    esconderConfirmacao();
     try {
       const ok = await cancelarAssinatura();
       if (ok) {
         setMensagem('Sua assinatura foi cancelada.');
+        setConfirmandoCancelamento(false);
       } else {
         setMensagem('Não foi possível cancelar a assinatura.');
+        setMensagemErro(true);
       }
     } finally {
       setSalvandoId(null);
@@ -158,14 +202,14 @@ export default function GerenciarAssinaturaScreen() {
   const codigoPixDemo = `00020126580014BR.GOV.BCB.PIX0136homewise-tcc-${planoEmCheckout?.id || 'plus'}-${ciclo}5204000053039865802BR5916HOMEWISEMONITORA6009SAOPAULO62070503***6304A1B2`;
 
   return (
-    <SubscriptionScreen title="Gerenciar assinatura" onBack={() => router.replace('/plano-assinatura')}>
+    <SubscriptionScreen title="Gerenciar assinatura" onBack={() => (router.canGoBack() ? router.back() : router.replace('/perfil'))}>
       <Text style={s.eyebrow}>PLANOS HOMEWISE</Text>
       <Text style={s.title}>O plano certo para sua casa.</Text>
       <Text style={s.subtitle}>Planos flexíveis e sem fidelidade. Economize mais, pague menos.</Text>
 
       <View style={styles.current}>
         <View style={s.icon}>
-          <Ionicons name={planoSalvo ? planoSalvo.icone : 'layers-outline'} size={22} color="#38bdf8" />
+          <Ionicons name={planoSalvo ? planoSalvo.icone : 'layers-outline'} size={22} color="#22b7d4" />
         </View>
         <View style={styles.currentText}>
           <Text style={styles.currentLabel}>SUA ASSINATURA ATUAL</Text>
@@ -178,18 +222,81 @@ export default function GerenciarAssinaturaScreen() {
         {planoSalvo && (
           <TouchableOpacity
             accessibilityRole="button"
+            accessibilityLabel="Cancelar assinatura"
+            accessibilityState={{ disabled: !!salvandoId, expanded: confirmandoCancelamento }}
             disabled={!!salvandoId}
             style={styles.cancelPill}
-            onPress={() => void handleCancelar()}
+            onPress={() => { setMensagem(''); setConfirmandoCancelamento(true); }}
           >
             <Text style={styles.cancelPillText}>Cancelar</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {!!mensagem && (
-        <View style={styles.feedbackBanner}>
-          <Ionicons name="checkmark-circle" size={18} color="#38bdf8" />
+      {planoSalvo && confirmandoCancelamento && (
+        <View style={styles.confirmarCancelamento} accessibilityLiveRegion="polite">
+          <Text style={styles.confirmarCancelamentoTitulo} accessibilityRole="header">Cancelar assinatura?</Text>
+          <Text style={styles.confirmarCancelamentoTexto}>
+            Ao cancelar, recursos exclusivos como metas mensais e relatórios anuais voltarão a ficar restritos. Você pode reativar quando quiser.
+          </Text>
+          {mensagemErro && !!mensagem && (
+            <Text accessibilityRole="alert" style={styles.confirmarCancelamentoErro}>{mensagem}</Text>
+          )}
+          <View style={styles.confirmarCancelamentoAcoes}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={salvandoId === 'cancelar'}
+              style={styles.manterPlano}
+              onPress={() => { setConfirmandoCancelamento(false); setMensagem(''); setMensagemErro(false); }}
+            >
+              <Text style={styles.manterPlanoTexto}>Manter plano</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !!salvandoId, busy: salvandoId === 'cancelar' }}
+              disabled={!!salvandoId}
+              style={[styles.confirmarCancelamentoBotao, !!salvandoId && { opacity: 0.7 }]}
+              onPress={() => void handleCancelar()}
+            >
+              {salvandoId === 'cancelar'
+                ? <ActivityIndicator color="#fca5a5" size="small" />
+                : <Text style={styles.confirmarCancelamentoBotaoTexto}>Confirmar cancelamento</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {!!confirmacao && (
+        <View
+          style={styles.confirmacao}
+          accessible
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={`Pagamento aprovado, simulação. ${confirmacao} Checkout demonstrativo, nenhuma cobrança real foi feita.`}
+        >
+          <View style={styles.confirmacaoIcone}>
+            <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.confirmacaoTopo}>
+              <Text style={styles.confirmacaoTitulo}>Pagamento aprovado</Text>
+              <View style={styles.seloSimulacao}>
+                <Text style={styles.seloSimulacaoTexto}>SIMULAÇÃO</Text>
+              </View>
+            </View>
+            <Text style={styles.feedbackText}>{confirmacao}</Text>
+            <Text style={styles.confirmacaoNota}>Checkout demonstrativo: nenhuma cobrança real foi feita.</Text>
+          </View>
+        </View>
+      )}
+
+      {!!mensagem && !(mensagemErro && confirmandoCancelamento) && (
+        <View
+          style={[styles.feedbackBanner, mensagemErro && styles.feedbackErro]}
+          accessibilityRole={mensagemErro ? 'alert' : undefined}
+          accessibilityLiveRegion="polite"
+        >
+          <Ionicons name={mensagemErro ? 'alert-circle' : 'checkmark-circle'} size={18} color={mensagemErro ? '#f87171' : '#22b7d4'} />
           <Text style={styles.feedbackText}>{mensagem}</Text>
         </View>
       )}
@@ -225,7 +332,7 @@ export default function GerenciarAssinaturaScreen() {
             <View key={plano.id} style={[s.card, (plano.id === 'plus' || ehPlanoAtual) && s.featured]}>
               <View style={s.cardTop}>
                 <View style={s.icon}>
-                  <Ionicons name={plano.icone} size={24} color="#38bdf8" />
+                  <Ionicons name={plano.icone} size={24} color="#22b7d4" />
                 </View>
                 {ehPlanoAtual ? (
                   <View style={[s.badge, styles.activeBadge]}>
@@ -271,7 +378,7 @@ export default function GerenciarAssinaturaScreen() {
         })}
       </View>
       <View style={s.note}>
-        <Ionicons name="information-circle-outline" size={18} color="#64748b" />
+        <Ionicons name="information-circle-outline" size={18} color="#7f97a6" />
         <Text style={s.noteText}>
           O plano escolhido é salvo na nuvem na sua conta HomeWise e sincronizado entre o site e o aplicativo. Ambiente acadêmico sem cobrança real.
         </Text>
@@ -310,7 +417,7 @@ export default function GerenciarAssinaturaScreen() {
                   onPress={() => setPlanoEmCheckout(null)}
                   style={styles.closeBtn}
                 >
-                  <Ionicons name="close" size={20} color="#94a3b8" />
+                  <Ionicons name="close" size={20} color="#9db1bd" />
                 </TouchableOpacity>
               </View>
 
@@ -319,7 +426,7 @@ export default function GerenciarAssinaturaScreen() {
                   <Text style={styles.summaryPlan}>
                     Plano {planoEmCheckout?.nome} • Ciclo {ciclo === 'anual' ? 'Anual (-15%)' : 'Mensal'}
                   </Text>
-                  <Ionicons name="shield-checkmark" size={16} color="#38bdf8" />
+                  <Ionicons name="shield-checkmark" size={16} color="#22b7d4" />
                 </View>
                 <Text style={styles.summaryValue}>{valorCheckout}</Text>
               </View>
@@ -339,7 +446,7 @@ export default function GerenciarAssinaturaScreen() {
                   <Ionicons
                     name="qr-code-outline"
                     size={16}
-                    color={metodo === 'pix' ? '#ffffff' : '#64748b'}
+                    color={metodo === 'pix' ? '#ffffff' : '#7f97a6'}
                   />
                   <Text style={[styles.payTabText, metodo === 'pix' && styles.payTabTextActive]}>
                     PIX Instantâneo
@@ -357,7 +464,7 @@ export default function GerenciarAssinaturaScreen() {
                   <Ionicons
                     name="card-outline"
                     size={16}
-                    color={metodo === 'cartao' ? '#ffffff' : '#64748b'}
+                    color={metodo === 'cartao' ? '#ffffff' : '#7f97a6'}
                   />
                   <Text style={[styles.payTabText, metodo === 'cartao' && styles.payTabTextActive]}>
                     Cartão de Crédito
@@ -392,7 +499,7 @@ export default function GerenciarAssinaturaScreen() {
                     <Ionicons
                       name={pixCopiado ? 'checkmark-circle' : 'copy-outline'}
                       size={16}
-                      color="#38bdf8"
+                      color="#22b7d4"
                     />
                     <Text style={styles.copyPixText}>
                       {pixCopiado ? 'Código PIX copiado!' : 'Copiar código PIX'}
@@ -409,7 +516,7 @@ export default function GerenciarAssinaturaScreen() {
                       onChangeText={formatarCartao}
                       keyboardType="numeric"
                       placeholder="0000 0000 0000 0000"
-                      placeholderTextColor="#64748b"
+                      placeholderTextColor="#7f97a6"
                       maxLength={19}
                     />
                   </View>
@@ -420,7 +527,7 @@ export default function GerenciarAssinaturaScreen() {
                       value={nomeCartao}
                       onChangeText={setNomeCartao}
                       placeholder="NOME COMPLETO"
-                      placeholderTextColor="#64748b"
+                      placeholderTextColor="#7f97a6"
                       autoCapitalize="characters"
                     />
                   </View>
@@ -433,7 +540,7 @@ export default function GerenciarAssinaturaScreen() {
                         onChangeText={formatarValidade}
                         keyboardType="numeric"
                         placeholder="MM/AA"
-                        placeholderTextColor="#64748b"
+                        placeholderTextColor="#7f97a6"
                         maxLength={5}
                       />
                     </View>
@@ -445,7 +552,7 @@ export default function GerenciarAssinaturaScreen() {
                         onChangeText={t => setCvvCartao(t.replace(/\D/g, '').slice(0, 4))}
                         keyboardType="numeric"
                         placeholder="123"
-                        placeholderTextColor="#64748b"
+                        placeholderTextColor="#7f97a6"
                         maxLength={4}
                         secureTextEntry
                       />
@@ -497,20 +604,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 13,
-    backgroundColor: '#0b1d28',
-    borderRadius: 16,
+    backgroundColor: '#0b1c27',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     padding: 16,
     marginBottom: 16,
   },
   currentText: { flex: 1 },
-  currentLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 },
+  currentLabel: { fontSize: 10.5, color: '#7f97a6', fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 },
   currentName: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
   cancelPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 10,
+    borderRadius: 999,
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#7f1d1d',
     backgroundColor: '#261414',
@@ -520,13 +629,79 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  feedbackErro: { backgroundColor: '#261414', borderColor: '#7f1d1d' },
+  confirmarCancelamento: {
+    backgroundColor: '#1a1214',
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    borderRadius: 18,
+    padding: 16,
+    gap: 10,
+    marginBottom: 16,
+  },
+  confirmarCancelamentoTitulo: { color: '#f1f7fa', fontSize: 16, fontWeight: '800' },
+  confirmarCancelamentoTexto: { color: '#9db1bd', fontSize: 13, lineHeight: 19 },
+  confirmarCancelamentoErro: { color: '#fca5a5', fontSize: 13, lineHeight: 19 },
+  confirmarCancelamentoAcoes: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
+  manterPlano: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#21465c',
+    backgroundColor: '#0f2431',
+    justifyContent: 'center',
+  },
+  manterPlanoTexto: { color: '#22b7d4', fontSize: 13, fontWeight: '700' },
+  confirmarCancelamentoBotao: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    backgroundColor: '#3b181c',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmarCancelamentoBotaoTexto: { color: '#fca5a5', fontSize: 13, fontWeight: '700' },
+  confirmacao: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: 'rgba(34, 197, 94, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+  },
+  confirmacaoIcone: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(34, 197, 94, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmacaoTopo: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 3 },
+  confirmacaoTitulo: { color: '#f1f7fa', fontSize: 15, fontWeight: '800' },
+  seloSimulacao: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  seloSimulacaoTexto: { color: '#fbbf24', fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  confirmacaoNota: { color: '#9db1bd', fontSize: 11.5, lineHeight: 16, marginTop: 4 },
   feedbackBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0c2738',
+    backgroundColor: '#0f2431',
     borderWidth: 1,
-    borderColor: '#0284c7',
+    borderColor: '#0a7d96',
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -539,8 +714,11 @@ const styles = StyleSheet.create({
   },
   cycleToggle: {
     flexDirection: 'row',
-    backgroundColor: '#0a1a24',
-    borderRadius: 12,
+    backgroundColor: '#0b1c27',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#122a39',
+    gap: 4,
     padding: 4,
     marginBottom: 20,
   },
@@ -550,14 +728,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
-    borderRadius: 9,
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: 10,
   },
   cycleTabActive: {
-    backgroundColor: '#0284c7',
+    backgroundColor: 'rgba(34, 183, 212, 0.16)',
+    borderColor: 'rgba(34, 183, 212, 0.5)',
   },
   cycleTabText: {
-    color: '#64748b',
+    color: '#7f97a6',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -584,7 +765,7 @@ const styles = StyleSheet.create({
   },
   currentButton: {
     opacity: 0.65,
-    borderColor: '#164e63',
+    borderColor: '#21465c',
   },
   list: { gap: 20 },
   modalBackdrop: {
@@ -600,10 +781,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 460,
     alignSelf: 'center',
-    backgroundColor: '#0b1d28',
+    backgroundColor: '#0b1c27',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     padding: 22,
   },
   modalHeader: {
@@ -613,7 +794,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   modalEyebrow: {
-    color: '#38bdf8',
+    color: '#22b7d4',
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.4,
@@ -628,16 +809,16 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#0e222e',
+    backgroundColor: '#0b1c27',
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     justifyContent: 'center',
     alignItems: 'center',
   },
   summaryBox: {
-    backgroundColor: '#0c2738',
+    backgroundColor: '#0f2431',
     borderWidth: 1,
-    borderColor: '#164e63',
+    borderColor: '#21465c',
     borderRadius: 14,
     padding: 14,
     marginBottom: 16,
@@ -654,14 +835,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   fieldLabel: {
-    color: '#94a3b8',
+    color: '#9db1bd',
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 6,
   },
   payTabs: {
     flexDirection: 'row',
-    backgroundColor: '#0a1a24',
+    backgroundColor: '#0b1c27',
     borderRadius: 12,
     padding: 4,
     marginBottom: 16,
@@ -676,10 +857,10 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   payTabActive: {
-    backgroundColor: '#0284c7',
+    backgroundColor: '#0a7d96',
   },
   payTabText: {
-    color: '#64748b',
+    color: '#7f97a6',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -691,7 +872,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#07131b',
     borderWidth: 1,
-    borderColor: '#132838',
+    borderColor: '#122a39',
     borderRadius: 14,
     padding: 16,
     gap: 10,
@@ -702,16 +883,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pixHint: {
-    color: '#94a3b8',
+    color: '#9db1bd',
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
   },
   pixCodeBox: {
     width: '100%',
-    backgroundColor: '#0b1d28',
+    backgroundColor: '#0b1c27',
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     borderRadius: 10,
     padding: 10,
   },
@@ -727,12 +908,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: '#0f2b3c',
+    backgroundColor: '#0f2431',
     borderWidth: 1,
-    borderColor: '#164e63',
+    borderColor: '#21465c',
   },
   copyPixText: {
-    color: '#38bdf8',
+    color: '#22b7d4',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -742,7 +923,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#07131b',
     borderWidth: 1,
-    borderColor: '#1e3a4b',
+    borderColor: '#173244',
     borderRadius: 12,
     paddingHorizontal: 14,
     height: 46,
@@ -755,7 +936,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   demoDisclaimer: {
-    color: '#64748b',
+    color: '#7f97a6',
     fontSize: 11,
     textAlign: 'center',
     marginTop: 12,
