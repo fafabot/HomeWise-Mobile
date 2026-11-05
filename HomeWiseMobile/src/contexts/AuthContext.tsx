@@ -3,6 +3,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
 import { DadosUsuario, salvarPerfilFirestore } from '@/services/authService';
+import { obterPlanoPorId, type CicloAssinatura, type PlanoId } from '@/constants/planos';
 
 type Entry = 'login' | 'cadastro' | null;
 
@@ -14,6 +15,8 @@ interface AuthContextType {
   entry: Entry;
   selectEntry: (entry: Entry) => void;
   atualizarDispositivoId: (novoId: string) => Promise<boolean>;
+  atualizarPlanoAssinatura: (planoId: PlanoId, ciclo?: CicloAssinatura) => Promise<boolean>;
+  cancelarAssinatura: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,7 +26,9 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   entry: null,
   selectEntry: () => {},
-  atualizarDispositivoId: async () => false
+  atualizarDispositivoId: async () => false,
+  atualizarPlanoAssinatura: async () => false,
+  cancelarAssinatura: async () => false
 });
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -85,6 +90,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }
 
+  async function atualizarPlanoAssinatura(planoId: PlanoId, ciclo: CicloAssinatura = 'mensal'): Promise<boolean> {
+    if (!user) return false;
+    const infoPlano = obterPlanoPorId(planoId);
+    return await salvarPerfilFirestore(user.uid, {
+      plano: planoId,
+      plano_nome: infoPlano?.nome || planoId,
+      ciclo_assinatura: ciclo,
+      status_assinatura: 'ativa',
+      assinado_em: new Date()
+    });
+  }
+
+  async function cancelarAssinatura(): Promise<boolean> {
+    if (!user) return false;
+    return await salvarPerfilFirestore(user.uid, {
+      plano: null,
+      plano_nome: null,
+      status_assinatura: 'cancelada'
+    });
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -94,7 +120,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         loading,
         entry,
         selectEntry,
-        atualizarDispositivoId
+        atualizarDispositivoId,
+        atualizarPlanoAssinatura,
+        cancelarAssinatura
       }}
     >
       {children}
