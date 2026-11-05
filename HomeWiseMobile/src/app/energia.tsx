@@ -10,17 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import {
-  observarUltimaLeitura,
-  observarHistorico,
-  centralEstaOnline,
-  Leitura
-} from '@/services/leiturasService';
-import {
-  observarHistoricoDiario,
-  calcularStatusBaseline,
-  ConsumoDiario
-} from '@/services/baselineService';
+import { centralEstaOnline } from '@/services/leiturasService';
+import { disponibilidade, exibivel, useLeiturasCentral } from '@/hooks/use-leituras-central';
+import AvisoFalhaLeituras, { SeloDesatualizado } from '@/components/AvisoFalhaLeituras';
+import { calcularStatusBaseline } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -31,43 +24,33 @@ import {
 
 export default function EnergiaScreen() {
   const router = useRouter();
-  const { dispositivoId } = useAuth();
+  const { user, dispositivoId } = useAuth();
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'ano'>('dia');
-  const [leitura, setLeitura] = useState<Leitura | null>(null);
-  const [historico, setHistorico] = useState<Leitura[]>([]);
-  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
-  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  const leituras = useLeiturasCentral(user?.uid, dispositivoId);
+  const { leitura, historico, historicoDiario, ultima, bruto, diario } = leituras;
+  const estadoLeitura = ultima.estado;
+  const [relogioMs, setRelogioMs] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setAgoraMs(Date.now());
+      setRelogioMs(Date.now());
     }, 5000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const unsubLeitura = observarUltimaLeitura((dados) => {
-      setLeitura(dados);
-      setAgoraMs(Date.now());
-    }, dispositivoId);
-
-    const unsubHistorico = observarHistorico((dados) => {
-      setHistorico(dados);
-    }, null, dispositivoId);
-
-    const unsubDiario = observarHistoricoDiario((dados) => {
-      setHistoricoDiario(dados);
-    }, dispositivoId);
-
-    return () => {
-      unsubLeitura();
-      unsubHistorico();
-      unsubDiario();
-    };
-  }, [dispositivoId]);
-
+  const agoraMs = Math.max(relogioMs, ultima.recebidoEmMs);
   const agoraData = new Date(agoraMs);
   const online = centralEstaOnline(leitura, agoraMs);
+  // Sem resposta válida (carregando ou erro), não se sabe se a central está ligada: mostra "--", não zero
+  const statusDesconhecido = !!dispositivoId && estadoLeitura !== 'pronto';
+  // Consumo do período, médias, previsão e linha de base combinam histórico bruto + diário
+  const dispTotais = disponibilidade(bruto, diario);
+  const totaisDisponiveis = exibivel(dispTotais);
+  const totaisDesatualizados = dispTotais === 'desatualizado';
+  // O gráfico usa somente o histórico bruto e continua disponível se apenas o diário falhar
+  const dispGrafico = disponibilidade(bruto);
+  const graficoDisponivel = exibivel(dispGrafico);
+  const mensagemSemGrafico = dispGrafico === 'indisponivel' ? 'Histórico indisponível no momento.' : 'Carregando seu histórico...';
   const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
 
   const aguaHojeNum = calcularConsumoPorPeriodo(
@@ -101,15 +84,16 @@ export default function EnergiaScreen() {
     historicoDiario,
     agoraData
   ).toFixed(2);
+  const consumoPeriodoTexto = totaisDisponiveis ? consumoPeriodoKwh : '--';
 
-  // Dados reais (potência e tensão instantâneas zeram quando a central está desligada)
-  const potenciaKw = online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
-  const potenciaW = online && leitura ? leitura.potencia_w.toFixed(0) : '0';
-  const tensaoV = online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
-  const previsaoMes = (statusBaseline.mediaEnergiaKwhDia * 30).toFixed(1);
+  // Dados reais (potência e tensão instantâneas zeram quando a central está desligada; "--" quando o status é desconhecido)
+  const potenciaKw = statusDesconhecido ? '--' : online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  const potenciaW = statusDesconhecido ? '--' : online && leitura ? leitura.potencia_w.toFixed(0) : '0';
+  const tensaoV = statusDesconhecido ? '--' : online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
+  const previsaoMes = totaisDisponiveis ? (statusBaseline.mediaEnergiaKwhDia * 30).toFixed(1) : '--';
 
   // Calcula medias reais do historico
-  const mediaDiaria = statusBaseline.mediaEnergiaKwhDia.toFixed(2);
+  const mediaDiaria = totaisDisponiveis ? statusBaseline.mediaEnergiaKwhDia.toFixed(2) : '--';
 
   const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
@@ -129,6 +113,9 @@ export default function EnergiaScreen() {
             <Ionicons name="notifications-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
+
+        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
 
         {/* Botoes de Periodo */}
         <View style={styles.periodoBarra}>
@@ -151,7 +138,8 @@ export default function EnergiaScreen() {
             <Ionicons name="flash" size={18} color="#86efac" />
             <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
           </View>
-          <Text style={styles.valorConsumo}>{consumoPeriodoKwh} <Text style={styles.unidade}>kWh</Text></Text>
+          <Text style={styles.valorConsumo}>{consumoPeriodoTexto} <Text style={styles.unidade}>kWh</Text></Text>
+          <SeloDesatualizado visivel={totaisDesatualizados} />
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Potência instantânea</Text>
@@ -167,8 +155,9 @@ export default function EnergiaScreen() {
         {/* Grafico de Barras Dinâmico */}
         <View style={styles.cardGrafico}>
           <Text style={styles.tituloGrafico}>Potência média por período (W)</Text>
-          <Text style={styles.labelHora}>Períodos sem leituras ficam sem barra.</Text>
-          <View style={styles.graficoContainer}>
+          <Text style={styles.labelHora}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
+          <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
+          {graficoDisponivel && <View style={styles.graficoContainer}>
             {barras.map((barra, index) => {
               const alturaPorcentagem = ((barra.valor ?? 0) / maiorValor) * 100;
               return (
@@ -178,13 +167,16 @@ export default function EnergiaScreen() {
                 </View>
               );
             })}
-          </View>
+          </View>}
         </View>
 
         {/* Resumo e Medias Calculadas */}
         <View style={styles.cardResumo}>
           <View style={styles.resumoHeader}>
-            <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
+            <View>
+              <Text style={styles.resumoTitulo}>Estatísticas Reais</Text>
+              <SeloDesatualizado visivel={totaisDesatualizados} />
+            </View>
             <TouchableOpacity onPress={() => router.push('/')}>
               <Text style={styles.resumoLink}>Ver no painel</Text>
             </TouchableOpacity>
@@ -196,7 +188,7 @@ export default function EnergiaScreen() {
           <View style={styles.resumoLinha}>
             <Text style={styles.resumoLabel}>Linha de Base</Text>
             <Text style={[styles.resumoValor, { color: statusBaseline.fase === 'calibrado' ? '#22c55e' : '#38bdf8' }]}>
-              {statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
+              {!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
             </Text>
           </View>
           <View style={[styles.resumoLinha, { borderBottomWidth: 0 }]}>

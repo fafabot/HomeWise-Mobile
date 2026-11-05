@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,7 +6,8 @@ import { useRouter } from 'expo-router';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '@/contexts/AuthContext';
 import { salvarPerfilFirestore } from '@/services/authService';
-import { observarHistorico, type Leitura } from '@/services/leiturasService';
+import { mensagemErroLeituras, useHistoricoCentral } from '@/hooks/use-leituras-central';
+import AvisoFalhaLeituras, { SeloDesatualizado } from '@/components/AvisoFalhaLeituras';
 import { lerMeta, resumirConsumoMensal } from '@/utils/metas';
 
 type Recurso = 'agua' | 'energia';
@@ -16,21 +17,19 @@ export default function MetasScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
   const [recurso, setRecurso] = useState<Recurso>('agua');
-  const [dados, setDados] = useState<{ dispositivo: string; leituras: Leitura[] } | null>(null);
-  const [falha, setFalha] = useState<string | null>(null);
+  // Estados por sessão (usuário + central): ao voltar para uma central anterior, erros antigos não reaparecem
+  const historicoCentral = useHistoricoCentral(user?.uid, dispositivoId);
+  const { bruto } = historicoCentral;
   const [editando, setEditando] = useState<Recurso | null>(null);
   const [valor, setValor] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const gravando = useRef(false);
 
-  useEffect(() => observarHistorico(leituras => {
-    setDados({ dispositivo: dispositivoId, leituras });
-    setFalha(null);
-  }, null, dispositivoId, () => setFalha(dispositivoId)), [dispositivoId]);
-
-  const carregando = dados?.dispositivo !== dispositivoId && falha !== dispositivoId;
-  const resumo = resumirConsumoMensal(dados?.dispositivo === dispositivoId ? dados.leituras : [], recurso === 'agua' ? 'consumo_agua_litros' : 'energia_kwh');
+  const carregando = bruto.estado === 'carregando';
+  // Erro sem dados recebidos nesta sessão: consumo indisponível. Erro com dados: exibidos como desatualizados.
+  const indisponivel = bruto.estado === 'erro' && !bruto.recebido;
+  const resumo = resumirConsumoMensal(bruto.dados ?? [], recurso === 'agua' ? 'consumo_agua_litros' : 'energia_kwh');
   const unidade = recurso === 'agua' ? 'L' : 'kWh';
   const cor = recurso === 'agua' ? '#22b7d4' : '#4ade80';
   const metaSalva = perfil?.metas_consumo?.[recurso];
@@ -86,6 +85,7 @@ export default function MetasScreen() {
         <Text style={s.eyebrow}>SEU CONSUMO, SOB CONTROLE</Text>
         <Text style={s.chamada}>Pequenas metas.{ '\n'}Grandes economias.</Text>
         <Text style={s.subtitulo}>Acompanhe seus limites mensais de água e energia.</Text>
+        <AvisoFalhaLeituras fontes={historicoCentral.fontes} onTentarNovamente={historicoCentral.tentarNovamente} />
         <View style={s.abas}>
           {(['agua', 'energia'] as const).map(item => <TouchableOpacity key={item} accessibilityRole="tab" accessibilityState={{ selected: recurso === item }} style={[s.aba, recurso === item && s.abaAtiva]} onPress={() => setRecurso(item)}><Ionicons name={item === 'agua' ? 'water-outline' : 'flash-outline'} size={17} color={recurso === item ? '#fff' : '#64748b'} /><Text style={[s.textoAba, recurso === item && s.textoAtivo]}>{item === 'agua' ? 'Água' : 'Energia'}</Text></TouchableOpacity>)}
         </View>
@@ -95,7 +95,7 @@ export default function MetasScreen() {
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Editar meta mensal" onPress={abrirEditor} style={s.editar}><Ionicons name="pencil-outline" size={15} color="#38bdf8" /><Text style={s.link}>{meta ? 'Editar' : 'Definir'}</Text></TouchableOpacity>
           </View>
           <Text style={s.mes}>{mes}</Text>
-          {carregando ? <ActivityIndicator size="large" color={cor} style={s.carregando} /> : falha === dispositivoId ? <Text accessibilityRole="alert" style={s.erro}>Não foi possível carregar o consumo. Verifique sua conexão.</Text> : <>
+          {carregando ? <ActivityIndicator size="large" color={cor} style={s.carregando} /> : indisponivel ? <Text accessibilityRole="alert" style={s.erro}>{mensagemErroLeituras(bruto.erro)}</Text> : <>
             <View style={s.anel} accessibilityLabel={meta ? `${Math.round(percentual)}% da meta consumidos` : 'Meta não definida'}>
               <Svg width={152} height={152} viewBox="0 0 152 152">
                 <Circle cx={76} cy={76} r={58} fill="none" stroke="#183442" strokeWidth={10} />
@@ -106,12 +106,13 @@ export default function MetasScreen() {
             <Text style={s.consumo}>{formatar(resumo.total)} {unidade} consumidos</Text>
             <Text style={[s.restante, excedeu && s.erro]}>{!meta ? 'Defina um limite para acompanhar sua economia.' : excedeu ? `Você ultrapassou a meta em ${formatar(resumo.total - meta)} ${unidade}.` : `Restam ${formatar(meta - resumo.total)} ${unidade} até o limite da sua meta.`}</Text>
             {semDados && <Text style={s.aviso}>Ainda não há leituras neste mês.</Text>}
+            <SeloDesatualizado visivel={bruto.desatualizado} />
           </>}
         </View>
         <View style={s.card}>
           <Text style={s.titulo}>Evolução no mês ({unidade})</Text>
           <Text style={s.mes}>Consumo acumulado e limite mensal</Text>
-          {!carregando && falha !== dispositivoId && !semDados ? <>
+          {!carregando && !indisponivel && !semDados ? <>
             <Svg width="100%" height={210} viewBox="0 0 330 210" accessibilityLabel="Gráfico do consumo acumulado no mês">
               {[0, 0.5, 1].map(fracao => <ViewSvg key={fracao} valor={escala * fracao} y={y(escala * fracao)} />)}
               {meta > 0 && <Line x1={44} x2={310} y1={y(meta)} y2={y(meta)} stroke="#7c92b4" strokeWidth={2} strokeDasharray="6 5" />}
@@ -120,7 +121,7 @@ export default function MetasScreen() {
               {[1, 8, 15, 22, resumo.diasNoMes].map(dia => <SvgText key={dia} x={x(dia)} y={190} fill="#94a3b8" fontSize={11} textAnchor="middle">{dia}</SvgText>)}
             </Svg>
             <View style={s.legendas}><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: cor }]} /><Text style={s.legenda}>Consumo</Text></View><View style={s.itemLegenda}><View style={[s.traco, { backgroundColor: '#7c92b4' }]} /><Text style={s.legenda}>Meta mensal</Text></View></View>
-          </> : <View style={s.vazio}><Ionicons name="stats-chart-outline" size={32} color="#3d6575" /><Text style={s.restante}>{carregando ? 'Carregando seu histórico...' : falha === dispositivoId ? 'Histórico indisponível no momento.' : 'Sua evolução aparecerá quando chegarem as primeiras leituras.'}</Text></View>}
+          </> : <View style={s.vazio}><Ionicons name="stats-chart-outline" size={32} color="#3d6575" /><Text style={s.restante}>{carregando ? 'Carregando seu histórico...' : indisponivel ? 'Histórico indisponível no momento.' : 'Sua evolução aparecerá quando chegarem as primeiras leituras.'}</Text></View>}
           <Text style={s.nota}>Calculado a partir do maior consumo diário registrado. Dias sem leituras não acrescentam consumo.</Text>
         </View>
       </ScrollView>
