@@ -4,7 +4,8 @@ import {
   setDoc,
   query,
   where,
-  onSnapshot
+  onSnapshot,
+  type FirestoreError
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Leitura } from './leiturasService';
@@ -143,11 +144,14 @@ export async function sincronizarConsumoDiario(leitura: Leitura): Promise<void> 
 /**
  * Escuta os registros diarios agregados para alimentar graficos e linha de base.
  * Filtra apenas por dispositivo_id (indice simples nativo do Firestore) e ordena por data em memoria.
+ * Snapshot vazio gera []; erro terminal gera apenas onError(error), sem nova consulta.
+ * O retorno cancela a assinatura de forma idempotente e descarta eventos tardios.
  */
 export function observarHistoricoDiario(
   callback: (historico: ConsumoDiario[]) => void,
   dispositivoId: string,
-  limiteDias = 366
+  limiteDias = 366,
+  onError?: (error: FirestoreError) => void
 ) {
   if (!dispositivoId || !dispositivoId.trim()) {
     callback([]);
@@ -159,9 +163,19 @@ export function observarHistoricoDiario(
     where('dispositivo_id', '==', dispositivoId)
   );
 
-  return onSnapshot(
+  let encerrado = false;
+  let unsubscribe: (() => void) | undefined;
+  const encerrar = () => {
+    encerrado = true;
+    const cancelar = unsubscribe;
+    unsubscribe = undefined;
+    cancelar?.();
+  };
+
+  unsubscribe = onSnapshot(
     q,
     (snapshot) => {
+      if (encerrado) return;
       const lista: ConsumoDiario[] = [];
       snapshot.forEach((docSnap) => {
         const d = docSnap.data();
@@ -185,10 +199,16 @@ export function observarHistoricoDiario(
       callback(cortada);
     },
     (err) => {
-      console.warn('[Baseline] Erro ao observar historico diario:', err.message);
-      callback([]);
+      if (encerrado) return;
+      encerrar();
+      console.warn('[Baseline] Erro ao observar historico diario:', err.code, err.message);
+      onError?.(err);
     }
   );
+
+  // Também libera o recurso se a implementação entregar um erro durante a inscrição.
+  if (encerrado) encerrar();
+  return encerrar;
 }
 
 /**
