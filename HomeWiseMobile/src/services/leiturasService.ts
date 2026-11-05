@@ -6,7 +6,8 @@ import {
   limit,
   onSnapshot,
   DocumentData,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  type FirestoreError
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { sincronizarConsumoDiario } from "./baselineService";
@@ -66,20 +67,22 @@ function converterLeitura(doc: QueryDocumentSnapshot<DocumentData>): Leitura {
 /**
  * Escuta a última leitura em tempo real.
  * Se nenhuma central estiver vinculada, retorna null imediatamente sem expor dados de terceiros.
+ * Erros terminais são enviados apenas a onError, nunca como resultado vazio.
+ * O retorno encerra o listener e descarta eventos posteriores ao cancelamento.
  */
 export function observarUltimaLeitura(
   callback: (leitura: Leitura | null) => void,
-  dispositivoId = ''
+  dispositivoId = '',
+  onError?: (error: FirestoreError) => void
 ) {
   if (!dispositivoId || !dispositivoId.trim()) {
     callback(null);
     return () => {};
   }
 
-  let unsubFallback: (() => void) | null = null;
   let cancelado = false;
 
-  // 1. Tenta query ótima no servidor (requer índice composto dispositivo_id ASC + criado_em DESC)
+  // Consulta sempre filtrada (requer índice composto dispositivo_id ASC + criado_em DESC).
   const qPrimaria = query(
     collection(db, "leituras"),
     where("dispositivo_id", "==", dispositivoId),
@@ -101,67 +104,37 @@ export function observarUltimaLeitura(
     },
     (error) => {
       if (cancelado) return;
-      console.warn(
-        "[Firestore] Query indexada requer índice composto no console. Ativando fallback cronológico automático...",
-        error.message
-      );
-
-      // 2. Fallback resiliente: ordena diretamente por criado_em DESC (índice padrão simples do Firestore)
-      const qFallback = query(
-        collection(db, "leituras"),
-        orderBy("criado_em", "desc"),
-        limit(50)
-      );
-
-      unsubFallback = onSnapshot(
-        qFallback,
-        (snapshot) => {
-          if (cancelado) return;
-          const correspondentes = snapshot.docs
-            .map(converterLeitura)
-            .filter((item) => item.dispositivo_id === dispositivoId);
-
-          if (correspondentes.length > 0) {
-            callback(correspondentes[0]);
-            void sincronizarConsumoDiario(correspondentes[0]);
-          } else {
-            callback(null);
-          }
-        },
-        (errFallback) => {
-          console.warn("[Firestore] Erro no fallback de leitura:", errFallback.message);
-        }
-      );
+      cancelado = true;
+      console.warn("[Firestore] Erro ao observar última leitura:", error.code, error.message);
+      onError?.(error);
     }
   );
 
   return () => {
     cancelado = true;
     unsubPrimaria();
-    if (unsubFallback) {
-      unsubFallback();
-    }
   };
 }
 
 /**
  * Escuta o histórico recente de leituras para gráficos e análises.
+ * Snapshot vazio gera []; erro terminal gera apenas onError(error).
+ * Não há nova consulta nem fallback em caso de erro. O retorno cancela a escuta.
  */
 export function observarHistorico(
   callback: (leituras: Leitura[]) => void,
   limiteRegistros: number | null = 30,
   dispositivoId = '',
-  onError?: () => void
+  onError?: (error: FirestoreError) => void
 ) {
   if (!dispositivoId || !dispositivoId.trim()) {
     callback([]);
     return () => {};
   }
 
-  let unsubFallback: (() => void) | null = null;
   let cancelado = false;
 
-  // 1. Query ideal indexada
+  // Não ampliar esta consulta em caso de erro de índice ou autorização.
   const qPrimaria = query(
     collection(db, "leituras"),
     where("dispositivo_id", "==", dispositivoId),
@@ -179,46 +152,14 @@ export function observarHistorico(
     },
     (error) => {
       if (cancelado) return;
-      console.warn(
-        "[Firestore] Histórico indexado requer índice composto no console. Ativando fallback cronológico automático...",
-        error.message
-      );
-
-      // 2. Fallback resiliente
-      const limiteFallback = limiteRegistros === null ? 500 : Math.max(limiteRegistros * 2, 50);
-      const qFallback = query(
-        collection(db, "leituras"),
-        orderBy("criado_em", "desc"),
-        limit(limiteFallback)
-      );
-
-      unsubFallback = onSnapshot(
-        qFallback,
-        (snapshot) => {
-          if (cancelado) return;
-          const filtradosTodos = snapshot.docs
-            .map(converterLeitura)
-            .filter((item) => item.dispositivo_id === dispositivoId);
-          const filtrados = limiteRegistros === null
-            ? filtradosTodos
-            : filtradosTodos.slice(0, limiteRegistros);
-
-          filtrados.sort((a, b) => (a.criado_em?.getTime() ?? 0) - (b.criado_em?.getTime() ?? 0));
-          callback(filtrados);
-        },
-        (errFallback) => {
-          console.warn("[Firestore] Erro no fallback de histórico:", errFallback.message);
-          onError?.();
-        }
-      );
+      cancelado = true;
+      console.warn("[Firestore] Erro ao observar histórico:", error.code, error.message);
+      onError?.(error);
     }
   );
 
   return () => {
     cancelado = true;
     unsubPrimaria();
-    if (unsubFallback) {
-      unsubFallback();
-    }
   };
 }

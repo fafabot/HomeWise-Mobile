@@ -1,19 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing } from 'react-native';
 
 export function usePanelMotion() {
-  const offset = useRef(new Animated.Value(240)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
+  const [offset] = useState(() => new Animated.Value(240));
+  const [buttonScale] = useState(() => new Animated.Value(1));
   const reducedMotion = useRef(false);
+  const closing = useRef(false);
   useEffect(() => {
     let active = true;
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => { reducedMotion.current = value; });
     AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      if (!active) return;
+      if (!active || closing.current) return;
       reducedMotion.current = value;
       if (value) offset.setValue(0);
       else Animated.spring(offset, { toValue: 0, damping: 19, stiffness: 150, mass: 0.9, useNativeDriver: true }).start();
-    }).catch(() => { if (active) offset.setValue(0); });
+    }).catch(() => { if (active && !closing.current) offset.setValue(0); });
     return () => { active = false; subscription.remove(); offset.stopAnimation(); buttonScale.stopAnimation(); };
   }, [offset, buttonScale]);
 
@@ -34,6 +35,8 @@ export function usePanelMotion() {
     ]).start(() => resolve());
   });
   const close = (onClosed: () => void, direction: 'up' | 'down' = 'down') => {
+    if (closing.current) return;
+    closing.current = true;
     if (reducedMotion.current) return onClosed();
     Animated.timing(offset, { toValue: direction === 'up' ? -240 : 240, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onClosed(); });
   };

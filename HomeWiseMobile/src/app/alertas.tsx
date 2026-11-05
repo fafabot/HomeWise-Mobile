@@ -11,16 +11,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-  observarUltimaLeitura,
-  observarHistorico,
   centralEstaOnline,
-  leituraEhDeHoje,
-  Leitura
+  leituraEhDeHoje
 } from '@/services/leiturasService';
+import { disponibilidade, exibivel, mensagemErroLeituras, useLeiturasCentral } from '@/hooks/use-leituras-central';
+import AvisoFalhaLeituras from '@/components/AvisoFalhaLeituras';
 import {
-  observarHistoricoDiario,
   calcularStatusBaseline,
-  ConsumoDiario,
   StatusBaseline
 } from '@/services/baselineService';
 
@@ -28,42 +25,26 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function AlertasScreen() {
   const router = useRouter();
-  const { dispositivoId } = useAuth();
-  const [leitura, setLeitura] = useState<Leitura | null>(null);
-  const [historico, setHistorico] = useState<Leitura[]>([]);
-  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
-  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  const { user, dispositivoId } = useAuth();
+  const leituras = useLeiturasCentral(user?.uid, dispositivoId);
+  const { leitura, historico, historicoDiario, ultima, bruto, diario } = leituras;
+  const estadoLeitura = ultima.estado;
+  const erroLeitura = ultima.erro;
+  const [relogioMs, setRelogioMs] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setAgoraMs(Date.now());
+      setRelogioMs(Date.now());
     }, 5000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const unsub = observarUltimaLeitura((dados) => {
-      setLeitura(dados);
-      setAgoraMs(Date.now());
-    }, dispositivoId);
-
-    const unsubHistorico = observarHistorico((dados) => {
-      setHistorico(dados);
-    }, null, dispositivoId);
-
-    const unsubDiario = observarHistoricoDiario((dados) => {
-      setHistoricoDiario(dados);
-    }, dispositivoId);
-
-    return () => {
-      unsub();
-      unsubHistorico();
-      unsubDiario();
-    };
-  }, [dispositivoId]);
-
+  const agoraMs = Math.max(relogioMs, ultima.recebidoEmMs);
   const temCentral = Boolean(dispositivoId && dispositivoId.trim());
-  const online = temCentral && centralEstaOnline(leitura, agoraMs);
+  // Com erro na última leitura, uma leitura anterior não comprova que a central está ao vivo
+  const online = temCentral && estadoLeitura === 'pronto' && centralEstaOnline(leitura, agoraMs);
+  // A linha de base combina histórico bruto + diário
+  const dispBaseline = disponibilidade(bruto, diario);
   const ehDeHoje = temCentral && leituraEhDeHoje(leitura, new Date(agoraMs));
   const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
 
@@ -90,6 +71,30 @@ export default function AlertasScreen() {
         corBorda: '#854d0e',
         corFundo: '#2e2009',
         corTexto: '#facc15'
+      }
+    : estadoLeitura === 'carregando'
+    ? {
+        id: 4,
+        tipo: 'aviso',
+        titulo: 'Verificando a Central HomeWise',
+        local: `Dispositivo ${dispositivoId}`,
+        descricao: 'Carregando as medições mais recentes da central.',
+        icone: 'sync-outline' as const,
+        corBorda: '#1e3a4b',
+        corFundo: '#0e222e',
+        corTexto: '#94a3b8'
+      }
+    : estadoLeitura === 'erro'
+    ? {
+        id: 4,
+        tipo: 'aviso',
+        titulo: 'Status da Central Indisponível',
+        local: `Dispositivo ${dispositivoId}`,
+        descricao: `${mensagemErroLeituras(erroLeitura)} Os alertas de vazamento, pico e tensão não podem ser verificados até a consulta ser restabelecida.`,
+        icone: 'alert-circle-outline' as const,
+        corBorda: '#7f1d1d',
+        corFundo: '#261414',
+        corTexto: '#f87171'
       }
     : online
     ? {
@@ -152,11 +157,23 @@ export default function AlertasScreen() {
       corTexto: '#facc15'
     }] : []),
     cardStatusCentral,
-    {
+    !exibivel(dispBaseline) ? {
+      id: 5,
+      tipo: 'aviso',
+      titulo: dispBaseline === 'indisponivel' ? 'Linha de Base Indisponível' : 'Carregando Linha de Base',
+      local: 'Inteligência Comportamental',
+      descricao: dispBaseline === 'indisponivel'
+        ? 'Não foi possível carregar o histórico de consumo para avaliar a linha de base.'
+        : 'Carregando o histórico de consumo da sua residência.',
+      icone: (dispBaseline === 'indisponivel' ? 'alert-circle-outline' : 'sync-outline') as 'alert-circle-outline' | 'sync-outline',
+      corBorda: '#1e3a4b',
+      corFundo: '#0e222e',
+      corTexto: '#94a3b8'
+    } : {
       id: 5,
       tipo: statusBaseline.fase === 'calibrado' ? 'sucesso' : 'aviso',
       titulo: statusBaseline.fase === 'calibrado' ? 'Linha de Base Calibrada' : 'Fase de Aprendizado Ativa',
-      local: `Inteligência Comportamental • ${statusBaseline.diasRegistrados}/${statusBaseline.metaDias} dias analisados`,
+      local: `Inteligência Comportamental • ${statusBaseline.diasRegistrados}/${statusBaseline.metaDias} dias analisados${dispBaseline === 'desatualizado' ? ' • Dados desatualizados' : ''}`,
       descricao: statusBaseline.fase === 'calibrado'
         ? `A média diária da sua residência foi calibrada em ${statusBaseline.mediaAguaLitrosDia} L/dia de água e ${statusBaseline.mediaEnergiaKwhDia} kWh/dia de energia. O sistema monitora e alerta desvios anormais superiores a 20%.`
         : 'Durante os primeiros 30 dias de uso, o ecossistema HomeWise aprende a rotina real dos moradores para personalizar os alertas de desperdício sem falsos positivos.',
@@ -184,6 +201,9 @@ export default function AlertasScreen() {
         <Text style={styles.subtituloPagina}>
           Regras de negócio e monitoramento contínuo da sua residência
         </Text>
+
+        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
 
         {/* Lista de Alertas Baseada no Estado Real dos Sensores */}
         {alertas.map((alerta) => (

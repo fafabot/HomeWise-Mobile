@@ -12,16 +12,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-  observarUltimaLeitura,
-  observarHistorico,
   centralEstaOnline,
-  leituraEhDeHoje,
-  Leitura
+  leituraEhDeHoje
 } from '@/services/leiturasService';
+import { disponibilidade, exibivel, useLeiturasCentral } from '@/hooks/use-leituras-central';
+import AvisoFalhaLeituras, { SeloDesatualizado } from '@/components/AvisoFalhaLeituras';
 import {
-  observarHistoricoDiario,
   calcularStatusBaseline,
-  ConsumoDiario,
   StatusBaseline
 } from '@/services/baselineService';
 import { calcularConsumoPorPeriodo } from '@/utils/grafico-periodos';
@@ -35,41 +32,27 @@ const TARIFA_ENERGIA_KWH = 0.85;      // ~R$ 0,85 por kWh
 export default function HomeScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
-  const [leitura, setLeitura] = useState<Leitura | null>(null);
-  const [historico, setHistorico] = useState<Leitura[]>([]);
-  const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
-  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  // Última leitura, histórico bruto e resumos diários da central deste usuário (estados separados por fonte)
+  const leituras = useLeiturasCentral(user?.uid, dispositivoId);
+  const { leitura, historico, historicoDiario, ultima, bruto, diario } = leituras;
+  const estadoLeitura = ultima.estado;
+  const [relogioMs, setRelogioMs] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setAgoraMs(Date.now()), 5000);
+    const timer = setInterval(() => setRelogioMs(Date.now()), 5000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    // Escuta a leitura mais recente em tempo real do ESP8266 para o dispositivo deste usuario
-    const unsubLeitura = observarUltimaLeitura((dados) => {
-      setLeitura(dados);
-      setAgoraMs(Date.now());
-    }, dispositivoId);
-
-    const unsubHistorico = observarHistorico((dados) => {
-      setHistorico(dados);
-    }, null, dispositivoId);
-
-    // Escuta os resumos diarios agregados para calculo da linha de base
-    const unsubDiario = observarHistoricoDiario((dados) => {
-      setHistoricoDiario(dados);
-    }, dispositivoId);
-
-    return () => {
-      unsubLeitura();
-      unsubHistorico();
-      unsubDiario();
-    };
-  }, [dispositivoId]);
-
+  const agoraMs = Math.max(relogioMs, ultima.recebidoEmMs);
   const agoraData = new Date(agoraMs);
-  const online = centralEstaOnline(leitura, agoraMs);
+  // Sem resposta válida da última leitura (carregando ou erro), o status da central é desconhecido.
+  // Uma leitura anterior a um erro não comprova que a central está ao vivo nem gera alertas.
+  const statusDesconhecido = !!dispositivoId && estadoLeitura !== 'pronto';
+  const online = !statusDesconhecido && centralEstaOnline(leitura, agoraMs);
+  // Totais, custo e linha de base combinam histórico bruto + diário: só são completos com as duas fontes
+  const dispTotais = disponibilidade(bruto, diario);
+  const totaisDisponiveis = exibivel(dispTotais);
+  const totaisDesatualizados = dispTotais === 'desatualizado';
   const ehDeHoje = leituraEhDeHoje(leitura, agoraData);
   const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
 
@@ -103,19 +86,19 @@ export default function HomeScreen() {
     agoraData
   );
 
-  const aguaHoje = aguaHojeNum.toFixed(1);
-  const energiaHoje = energiaHojeNum.toFixed(2);
-  const aguaMes = aguaMesNum.toFixed(0);
-  const energiaMes = energiaMesNum.toFixed(1);
+  const aguaHoje = totaisDisponiveis ? aguaHojeNum.toFixed(1) : '--';
+  const energiaHoje = totaisDisponiveis ? energiaHojeNum.toFixed(2) : '--';
+  const aguaMes = totaisDisponiveis ? aguaMesNum.toFixed(0) : '--';
+  const energiaMes = totaisDisponiveis ? energiaMesNum.toFixed(1) : '--';
 
-  const vazaoAtual = leitura && online ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
-  const potenciaAtual = leitura && online ? Number(leitura.potencia_w).toFixed(0) : '0';
-  const tensaoAtual = leitura && online ? Number(leitura.tensao_v).toFixed(0) : '0';
+  const vazaoAtual = statusDesconhecido ? '--' : leitura && online ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  const potenciaAtual = statusDesconhecido ? '--' : leitura && online ? Number(leitura.potencia_w).toFixed(0) : '0';
+  const tensaoAtual = statusDesconhecido ? '--' : leitura && online ? Number(leitura.tensao_v).toFixed(0) : '0';
 
   // Custo estimado do mes com base no consumo real do mes atual
   const custoAgua = aguaMesNum * TARIFA_AGUA_POR_LITRO;
   const custoEnergia = energiaMesNum * TARIFA_ENERGIA_KWH;
-  const totalPrevisto = (custoAgua + custoEnergia).toFixed(2);
+  const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
 
   // Inteligencia da Linha de Base (Baseline de 30 dias)
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
@@ -197,6 +180,9 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
+        <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+
         {/* Linha dos Cards de Agua e Energia com Dados Reais */}
         <View style={styles.rowCards}>
           {/* Card Agua */}
@@ -207,6 +193,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.miniCardValor}>{aguaHoje} L</Text>
             <Text style={styles.miniCardSub}>{aguaMes} L este mês</Text>
+            <SeloDesatualizado visivel={totaisDesatualizados} />
           </TouchableOpacity>
 
           {/* Card Energia */}
@@ -217,6 +204,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.miniCardValor}>{energiaHoje} kWh</Text>
             <Text style={styles.miniCardSub}>{energiaMes} kWh este mês</Text>
+            <SeloDesatualizado visivel={totaisDesatualizados} />
           </TouchableOpacity>
         </View>
 
@@ -229,6 +217,7 @@ export default function HomeScreen() {
               <Ionicons name="calculator-outline" size={14} color="#22c55e" />
               <Text style={styles.totalPrevistoSub}> Baseado na tarifa de consumo atual</Text>
             </View>
+            <SeloDesatualizado visivel={totaisDesatualizados} />
           </View>
           <View style={styles.circuloCifrao}>
             <Ionicons name="cash-outline" size={24} color="#ffffff" />
@@ -240,16 +229,25 @@ export default function HomeScreen() {
           <View style={styles.situacaoEsquerda}>
             <View style={[styles.checkIconBox, (possivelVazamento || consumoElevado || !online) && styles.checkIconBoxAlerta]}>
               <Ionicons
-                name={possivelVazamento || consumoElevado ? "alert" : !online ? "cloud-offline-outline" : "checkmark"}
+                name={
+                  possivelVazamento || consumoElevado ? "alert"
+                    : estadoLeitura === 'carregando' && dispositivoId ? "sync-outline"
+                    : estadoLeitura === 'erro' ? "alert-circle-outline"
+                    : !online ? "cloud-offline-outline" : "checkmark"
+                }
                 size={18}
                 color={possivelVazamento || consumoElevado || !online ? "#ffffff" : "#07131b"}
               />
             </View>
-            <View>
+            <View style={{ flexShrink: 1 }}>
               <Text style={styles.situacaoLabel}>Situação do sistema</Text>
               <Text style={styles.situacaoStatus}>
                 {!dispositivoId
                   ? "Aguardando vinculação da central"
+                  : estadoLeitura === 'carregando'
+                  ? "Carregando medições da central..."
+                  : estadoLeitura === 'erro'
+                  ? "Não foi possível verificar a central"
                   : !online
                   ? "Central desligada / sem comunicação"
                   : possivelVazamento
@@ -274,9 +272,15 @@ export default function HomeScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.baselineEtiqueta}>INTELIGÊNCIA HOMETRACK • LINHA DE BASE</Text>
-              <Text style={styles.baselineTitulo}>{statusBaseline.mensagem}</Text>
+              <Text style={styles.baselineTitulo}>
+                {totaisDisponiveis
+                  ? statusBaseline.mensagem
+                  : dispTotais === 'indisponivel'
+                  ? 'Histórico indisponível no momento.'
+                  : 'Carregando seu histórico...'}
+              </Text>
             </View>
-            <View style={[
+            {totaisDisponiveis && <View style={[
               styles.badgeFase,
               statusBaseline.fase === 'calibrado' ? styles.badgeFaseCalibrado : styles.badgeFaseAprendizado
             ]}>
@@ -286,11 +290,11 @@ export default function HomeScreen() {
               ]}>
                 {statusBaseline.fase === 'calibrado' ? 'CALIBRADO' : `${statusBaseline.progressoPorcentagem}%`}
               </Text>
-            </View>
+            </View>}
           </View>
 
-          {/* Barra de Progresso ou Metricas */}
-          {statusBaseline.fase === 'aprendizado' ? (
+          {/* Barra de Progresso ou Metricas (somente com o histórico carregado) */}
+          {!totaisDisponiveis ? null : statusBaseline.fase === 'aprendizado' ? (
             <View style={styles.barraProgressoContainer}>
               <View style={styles.trilhoProgresso}>
                 <View style={[styles.preenchimentoProgresso, { width: `${Math.max(statusBaseline.progressoPorcentagem, 8)}%` }]} />
@@ -313,7 +317,8 @@ export default function HomeScreen() {
             </View>
           )}
 
-          <Text style={styles.dicaBaseline}>{statusBaseline.dica}</Text>
+          {totaisDisponiveis && <Text style={styles.dicaBaseline}>{statusBaseline.dica}</Text>}
+          <SeloDesatualizado visivel={totaisDesatualizados} />
         </View>
 
         {/* Sessao Alertas Ativos */}
@@ -336,6 +341,15 @@ export default function HomeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#f87171" />
           </TouchableOpacity>
+        ) : statusDesconhecido ? (
+          <View style={styles.cardSemAlerta}>
+            <Ionicons name={estadoLeitura === 'erro' ? 'alert-circle-outline' : 'sync-outline'} size={20} color="#94a3b8" />
+            <Text style={styles.textoSemAlerta}>
+              {estadoLeitura === 'erro'
+                ? 'Não é possível verificar alertas sem as medições da central.'
+                : 'Verificando alertas...'}
+            </Text>
+          </View>
         ) : (
           <View style={styles.cardSemAlerta}>
             <Ionicons name="shield-checkmark-outline" size={20} color="#22c55e" />
@@ -353,7 +367,11 @@ export default function HomeScreen() {
             <View style={[styles.badgeLive, !online && styles.badgeOffline]}>
               <View style={[styles.pontoLive, !online && styles.pontoOffline]} />
               <Text style={[styles.badgeLiveTexto, !online && styles.badgeOfflineTexto]}>
-                {online ? "AO VIVO" : !dispositivoId ? "SEM CENTRAL" : leitura ? "DESLIGADA" : "AGUARDANDO ESP"}
+                {online ? "AO VIVO"
+                  : !dispositivoId ? "SEM CENTRAL"
+                  : estadoLeitura === 'carregando' ? "CONECTANDO"
+                  : estadoLeitura === 'erro' ? "INDISPONÍVEL"
+                  : leitura ? "DESLIGADA" : "AGUARDANDO ESP"}
               </Text>
             </View>
           </View>

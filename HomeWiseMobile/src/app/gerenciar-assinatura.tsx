@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -50,18 +50,22 @@ export default function GerenciarAssinaturaScreen() {
   const [erroPagamento, setErroPagamento] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
 
-  useEffect(() => {
+  const [cicloSincronizado, setCicloSincronizado] = useState(perfil?.ciclo_assinatura);
+  if (cicloSincronizado !== perfil?.ciclo_assinatura) {
+    setCicloSincronizado(perfil?.ciclo_assinatura);
     if (perfil?.ciclo_assinatura === 'anual' || perfil?.ciclo_assinatura === 'mensal') {
       setCiclo(perfil.ciclo_assinatura);
     }
-  }, [perfil?.ciclo_assinatura]);
+  }
 
-  useEffect(() => {
+  const [checkoutSincronizado, setCheckoutSincronizado] = useState<string | undefined>(undefined);
+  if (checkoutSincronizado !== params.checkout) {
+    setCheckoutSincronizado(params.checkout);
     if (params.checkout) {
       const p = obterPlanoPorId(params.checkout);
       if (p) abrirCheckout(p);
     }
-  }, [params.checkout]);
+  }
 
   function abrirCheckout(plano: Plano) {
     setErroPagamento('');
