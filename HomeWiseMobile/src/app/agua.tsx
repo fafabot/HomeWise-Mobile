@@ -10,7 +10,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  observarHistorico,
+  centralEstaOnline,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -18,7 +23,11 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
+import {
+  montarBarrasPorPeriodo,
+  calcularConsumoPorPeriodo,
+  obterRotuloConsumoPorPeriodo
+} from '@/utils/grafico-periodos';
 
 export default function AguaScreen() {
   const router = useRouter();
@@ -27,10 +36,19 @@ export default function AguaScreen() {
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAgoraMs(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
@@ -48,21 +66,49 @@ export default function AguaScreen() {
     };
   }, [dispositivoId]);
 
-  const statusBaseline = calcularStatusBaseline(
+  const agoraData = new Date(agoraMs);
+  const online = centralEstaOnline(leitura, agoraMs);
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
+
+  const aguaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'consumo_agua_litros',
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    agoraData
+  );
+  const energiaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
   );
 
-  // Dados reais do sensor YF-S201
-  const litrosHoje = leitura ? Number(leitura.consumo_agua_litros).toFixed(1) : '0.0';
-  const vazaoLMin = leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
+  const statusBaseline = calcularStatusBaseline(
+    historicoDiario,
+    aguaHojeNum,
+    energiaHojeNum,
+    leiturasParaCalculo
+  );
+
+  // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
+  const rotuloConsumoPeriodo = obterRotuloConsumoPorPeriodo(periodo);
+  const consumoPeriodoLitros = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    periodo,
+    'consumo_agua_litros',
+    historicoDiario,
+    agoraData
+  ).toFixed(1);
+
+  const vazaoLMin = online && leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
   const previsaoMesLitros = (statusBaseline.mediaAguaLitrosDia * 30).toFixed(0);
 
   // Calcula medias reais do historico
   const mediaDiariaLitros = statusBaseline.mediaAguaLitrosDia.toFixed(1);
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min');
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
@@ -100,9 +146,9 @@ export default function AguaScreen() {
         <View style={styles.cardAguaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="water" size={18} color="#38bdf8" />
-            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
+            <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
           </View>
-          <Text style={styles.valorConsumo}>{litrosHoje} <Text style={styles.unidade}>L</Text></Text>
+          <Text style={styles.valorConsumo}>{consumoPeriodoLitros} <Text style={styles.unidade}>L</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Vazão instantânea</Text>

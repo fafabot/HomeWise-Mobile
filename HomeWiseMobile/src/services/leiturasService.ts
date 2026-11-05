@@ -22,6 +22,31 @@ export interface Leitura {
   criado_em?: Date;
 }
 
+/**
+ * O ESP8266 envia telemetria a cada 10s.
+ * Se não houver leitura nos últimos 35s, a central é considerada desligada/offline.
+ */
+export const TEMPO_LIMITE_ONLINE_MS = 35_000;
+
+export function centralEstaOnline(leitura: Leitura | null, agoraMs: number = Date.now()): boolean {
+  if (!leitura?.criado_em) return false;
+  const timestampLeitura = new Date(leitura.criado_em).getTime();
+  if (!Number.isFinite(timestampLeitura) || timestampLeitura <= 0) return false;
+  const diferencaMs = agoraMs - timestampLeitura;
+  // Tolera até 60s de leve adiantamento de relógio local e até 35s desde o último pacote
+  return diferencaMs >= -60_000 && diferencaMs <= TEMPO_LIMITE_ONLINE_MS;
+}
+
+export function leituraEhDeHoje(leitura: Leitura | null, agora: Date = new Date()): boolean {
+  if (!leitura?.criado_em) return false;
+  const data = new Date(leitura.criado_em);
+  return (
+    data.getFullYear() === agora.getFullYear() &&
+    data.getMonth() === agora.getMonth() &&
+    data.getDate() === agora.getDate()
+  );
+}
+
 function converterLeitura(doc: QueryDocumentSnapshot<DocumentData>): Leitura {
   const data = doc.data();
   return {
@@ -34,7 +59,7 @@ function converterLeitura(doc: QueryDocumentSnapshot<DocumentData>): Leitura {
     tensao_v: Number(data.tensao_v || 0),
     criado_em: data.criado_em?.toDate
       ? data.criado_em.toDate()
-      : (data.criado_em ? new Date(data.criado_em) : new Date())
+      : (data.criado_em ? new Date(data.criado_em) : new Date(0))
   };
 }
 

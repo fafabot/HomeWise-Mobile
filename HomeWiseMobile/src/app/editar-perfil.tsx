@@ -44,11 +44,6 @@ export default function EditarPerfilScreen() {
       return;
     }
 
-    if (!dispositivoId.trim()) {
-      Alert.alert('Atenção', 'Informe o identificador da sua Central HomeWise.');
-      return;
-    }
-
     setSalvando(true);
     const resultado = await atualizarPerfilUsuario(nome, {
       dispositivo_id: dispositivoId.trim(),
@@ -59,7 +54,7 @@ export default function EditarPerfilScreen() {
     setSalvando(false);
 
     if (resultado.sucesso) {
-      Alert.alert('Sucesso', 'Perfil e Central atualizados com sucesso!', [
+      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
         { text: 'OK', onPress: () => router.push('/perfil') }
       ]);
     } else {
@@ -120,7 +115,7 @@ export default function EditarPerfilScreen() {
           {/* Campo Codigo da Central */}
           <View style={styles.inputGrupo}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-              <Text style={styles.label}>Código da Central HomeWise</Text>
+              <Text style={styles.label}>Código da Central HomeWise (Opcional)</Text>
               <TouchableOpacity
                 style={styles.botaoScanPequeno}
                 activeOpacity={0.7}
@@ -135,7 +130,7 @@ export default function EditarPerfilScreen() {
                 style={styles.input}
                 value={dispositivoId}
                 onChangeText={setDispositivoId}
-                placeholder="Ex: central_homewise_01"
+                placeholder="Deixe vazio para desvincular ou digite o código"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
               />
@@ -144,7 +139,7 @@ export default function EditarPerfilScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.helperText}>
-              Este código vincula os sensores de água e energia da sua casa à sua conta.
+              Este código vincula os sensores de água e energia da sua casa à sua conta. Deixe em branco se quiser desvincular a central atual.
             </Text>
           </View>
 

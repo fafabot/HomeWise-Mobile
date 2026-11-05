@@ -10,7 +10,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { observarUltimaLeitura, observarHistorico, Leitura } from '@/services/leiturasService';
+import {
+  observarUltimaLeitura,
+  observarHistorico,
+  centralEstaOnline,
+  Leitura
+} from '@/services/leiturasService';
 import {
   observarHistoricoDiario,
   calcularStatusBaseline,
@@ -18,7 +23,11 @@ import {
 } from '@/services/baselineService';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { montarBarrasPorPeriodo } from '@/utils/grafico-periodos';
+import {
+  montarBarrasPorPeriodo,
+  calcularConsumoPorPeriodo,
+  obterRotuloConsumoPorPeriodo
+} from '@/utils/grafico-periodos';
 
 export default function EnergiaScreen() {
   const router = useRouter();
@@ -27,10 +36,19 @@ export default function EnergiaScreen() {
   const [leitura, setLeitura] = useState<Leitura | null>(null);
   const [historico, setHistorico] = useState<Leitura[]>([]);
   const [historicoDiario, setHistoricoDiario] = useState<ConsumoDiario[]>([]);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAgoraMs(Date.now());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubLeitura = observarUltimaLeitura((dados) => {
       setLeitura(dados);
+      setAgoraMs(Date.now());
     }, dispositivoId);
 
     const unsubHistorico = observarHistorico((dados) => {
@@ -48,21 +66,52 @@ export default function EnergiaScreen() {
     };
   }, [dispositivoId]);
 
-  const statusBaseline = calcularStatusBaseline(
+  const agoraData = new Date(agoraMs);
+  const online = centralEstaOnline(leitura, agoraMs);
+  const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
+
+  const aguaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'consumo_agua_litros',
     historicoDiario,
-    leitura ? Number(leitura.consumo_agua_litros) : 0,
-    leitura ? Number(leitura.energia_kwh) : 0
+    agoraData
+  );
+  const energiaHojeNum = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    'dia',
+    'energia_kwh',
+    historicoDiario,
+    agoraData
   );
 
-  // Dados reais
-  const energiaHoje = leitura ? Number(leitura.energia_kwh).toFixed(2) : '0.00';
-  const potenciaKw = leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  const statusBaseline = calcularStatusBaseline(
+    historicoDiario,
+    aguaHojeNum,
+    energiaHojeNum,
+    leiturasParaCalculo
+  );
+
+  // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
+  const rotuloConsumoPeriodo = obterRotuloConsumoPorPeriodo(periodo);
+  const consumoPeriodoKwh = calcularConsumoPorPeriodo(
+    leiturasParaCalculo,
+    periodo,
+    'energia_kwh',
+    historicoDiario,
+    agoraData
+  ).toFixed(2);
+
+  // Dados reais (potência e tensão instantâneas zeram quando a central está desligada)
+  const potenciaKw = online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
+  const potenciaW = online && leitura ? leitura.potencia_w.toFixed(0) : '0';
+  const tensaoV = online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
   const previsaoMes = (statusBaseline.mediaEnergiaKwhDia * 30).toFixed(1);
 
   // Calcula medias reais do historico
   const mediaDiaria = statusBaseline.mediaEnergiaKwhDia.toFixed(2);
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w');
+  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
   return (
@@ -100,17 +149,17 @@ export default function EnergiaScreen() {
         <View style={styles.cardEnergiaPrincipal}>
           <View style={styles.cardTopoLinha}>
             <Ionicons name="flash" size={18} color="#86efac" />
-            <Text style={styles.labelConsumo}>Consumo medido hoje</Text>
+            <Text style={styles.labelConsumo}>{rotuloConsumoPeriodo}</Text>
           </View>
-          <Text style={styles.valorConsumo}>{energiaHoje} <Text style={styles.unidade}>kWh</Text></Text>
+          <Text style={styles.valorConsumo}>{consumoPeriodoKwh} <Text style={styles.unidade}>kWh</Text></Text>
           <View style={styles.linhaInfo}>
             <View>
               <Text style={styles.infoLabel}>Potência instantânea</Text>
-              <Text style={styles.infoValor}>{potenciaKw} kW ({leitura?.potencia_w?.toFixed(0) || '0'} W)</Text>
+              <Text style={styles.infoValor}>{potenciaKw} kW ({potenciaW} W)</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.infoLabel}>Tensão na rede</Text>
-              <Text style={styles.infoValor}>{leitura?.tensao_v?.toFixed(1) || '0'} V</Text>
+              <Text style={styles.infoValor}>{tensaoV} V</Text>
             </View>
           </View>
         </View>
