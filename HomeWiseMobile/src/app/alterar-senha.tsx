@@ -1,3 +1,4 @@
+import { showAlert } from '@/utils/alert';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -7,7 +8,6 @@ import {
   TextInput,
   TouchableOpacity,
   StatusBar,
-  Alert,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,17 +27,17 @@ export default function AlterarSenhaScreen() {
 
   async function handleSalvarSenha() {
     if (!senhaAtual || !novaSenha || !confirmarSenha) {
-      Alert.alert('Atenção', 'Preencha todos os campos.');
+      showAlert('Atenção', 'Preencha todos os campos.');
       return;
     }
 
     if (novaSenha !== confirmarSenha) {
-      Alert.alert('Erro', 'A nova senha e a confirmação não coincidem.');
+      showAlert('Erro', 'A nova senha e a confirmação não coincidem.');
       return;
     }
 
     if (novaSenha.length < 6) {
-      Alert.alert('Erro', 'A nova senha deve ter no mínimo 6 caracteres.');
+      showAlert('Erro', 'A nova senha deve ter no mínimo 6 caracteres.');
       return;
     }
 
@@ -46,11 +46,11 @@ export default function AlterarSenhaScreen() {
     setCarregando(false);
 
     if (resultado.sucesso) {
-      Alert.alert('Sucesso', 'Senha alterada com sucesso!', [
+      showAlert('Sucesso', 'Senha alterada com sucesso!', [
         { text: 'OK', onPress: () => router.push('/perfil') }
       ]);
     } else {
-      Alert.alert('Erro', resultado.erro || 'Não foi possível alterar a senha.');
+      showAlert('Erro', resultado.erro || 'Não foi possível alterar a senha.');
     }
   }
 

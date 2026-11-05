@@ -1,3 +1,4 @@
+import { showAlert } from '@/utils/alert';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -5,7 +6,6 @@ import {
   View,
   TouchableOpacity,
   StatusBar,
-  Alert,
   Dimensions,
   ActivityIndicator
 } from 'react-native';
@@ -64,7 +64,7 @@ export default function EscanearQRCodeScreen() {
           <Ionicons name="shield-checkmark" size={18} color="#07131b" style={{ marginRight: 8 }} />
           <Text style={styles.textoBotaoPermissao}>Permitir Acesso à Câmera</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.botaoVoltarSimples} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.botaoVoltarSimples} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={styles.textoVoltarSimples}>Voltar</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -77,7 +77,7 @@ export default function EscanearQRCodeScreen() {
 
     const codigo = extrairCodigoCentral(result.data);
     if (!codigo) {
-      Alert.alert(
+      showAlert(
         'QR Code Inválido',
         'Não foi possível identificar o código da central no QR Code escaneado.',
         [{ text: 'Tentar Novamente', onPress: () => setScanned(false) }]
@@ -90,7 +90,7 @@ export default function EscanearQRCodeScreen() {
     setSalvando(false);
 
     if (sucesso) {
-      Alert.alert(
+      showAlert(
         'Central Conectada!',
         `A central "${codigo}" foi vinculada com sucesso à sua conta.\nSuas medições em tempo real já estão ativas.`,
         [
@@ -101,7 +101,7 @@ export default function EscanearQRCodeScreen() {
         ]
       );
     } else {
-      Alert.alert(
+      showAlert(
         'Erro ao Vincular',
         'Ocorreu uma falha ao salvar a central no seu perfil. Tente novamente.',
         [{ text: 'OK', onPress: () => setScanned(false) }]
@@ -128,7 +128,7 @@ export default function EscanearQRCodeScreen() {
       <SafeAreaView style={styles.overlay}>
         {/* Barra Superior */}
         <View style={styles.topoBarra}>
-          <TouchableOpacity style={styles.botaoCircular} activeOpacity={0.7} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.botaoCircular} activeOpacity={0.7} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Ionicons name="close" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloTopo}>Escanear QR Code</Text>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { showAlert } from '@/utils/alert';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,7 +8,6 @@ import {
   TextInput,
   TouchableOpacity,
   StatusBar,
-  Alert,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,18 +29,29 @@ export default function EditarPerfilScreen() {
   const [cep, setCep] = useState(perfil?.cep || '');
   const [salvando, setSalvando] = useState(false);
 
+  // O perfil chega de forma assíncrona (onSnapshot no AuthContext). Quando algum valor salvo muda,
+  // os campos são sincronizados durante a renderização, sem setState dentro de useEffect.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   const { nome: nomeSalvo, dispositivo_id: centralSalva, telefone: telefoneSalvo, residencia: residenciaSalva, cep: cepSalvo } = perfil ?? {};
-  useEffect(() => {
+  const [perfilSincronizado, setPerfilSincronizado] = useState({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo });
+  if (
+    perfilSincronizado.nomeSalvo !== nomeSalvo ||
+    perfilSincronizado.centralSalva !== centralSalva ||
+    perfilSincronizado.telefoneSalvo !== telefoneSalvo ||
+    perfilSincronizado.residenciaSalva !== residenciaSalva ||
+    perfilSincronizado.cepSalvo !== cepSalvo
+  ) {
+    setPerfilSincronizado({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo });
     if (nomeSalvo) setNome(nomeSalvo);
     if (centralSalva !== undefined) setDispositivoId(centralSalva);
     if (telefoneSalvo) setTelefone(telefoneSalvo);
     if (residenciaSalva) setResidencia(residenciaSalva);
     if (cepSalvo) setCep(cepSalvo);
-  }, [nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo]);
+  }
 
   async function handleSalvar() {
     if (!nome.trim()) {
-      Alert.alert('Atenção', 'O nome não pode ficar em branco.');
+      showAlert('Atenção', 'O nome não pode ficar em branco.');
       return;
     }
 
@@ -54,11 +65,11 @@ export default function EditarPerfilScreen() {
     setSalvando(false);
 
     if (resultado.sucesso) {
-      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
+      showAlert('Sucesso', 'Perfil atualizado com sucesso!', [
         { text: 'OK', onPress: () => router.push('/perfil') }
       ]);
     } else {
-      Alert.alert('Erro', resultado.erro || 'Não foi possível salvar as alterações.');
+      showAlert('Erro', resultado.erro || 'Não foi possível salvar as alterações.');
     }
   }
 

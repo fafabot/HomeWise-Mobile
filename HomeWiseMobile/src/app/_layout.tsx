@@ -22,9 +22,11 @@ function Navigation() {
         <Stack.Protected guard={!entry}>
           <Stack.Screen name="boas-vindas" />
         </Stack.Protected>
-        <Stack.Protected guard={!user && !!entry}>
-          <Stack.Screen name={entry === 'cadastro' ? 'cadastro' : 'login'} />
-          <Stack.Screen name={entry === 'cadastro' ? 'login' : 'cadastro'} />
+        <Stack.Protected guard={!user && entry === 'cadastro'}>
+          <Stack.Screen name="cadastro" />
+        </Stack.Protected>
+        <Stack.Protected guard={!user && entry === 'login'}>
+          <Stack.Screen name="login" />
           <Stack.Screen name="recuperar-senha" />
         </Stack.Protected>
         <Stack.Protected guard={!!user && !!entry}>

@@ -199,25 +199,28 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {registering && (
               <>
                 <Text style={styles.label}>Confirmar senha</Text>
-                <TextInput
-                  ref={confirmationInput}
-                  style={[styles.input, focused === 'confirmation' && styles.focused]}
-                  accessibilityLabel="Confirmar senha"
-                  placeholder="Repita sua senha"
-                  placeholderTextColor="#95a5bd"
-                  value={confirmation}
-                  onChangeText={setConfirmation}
-                  onFocus={() => setFocused('confirmation')}
-                  onBlur={() => setFocused(null)}
-                  secureTextEntry={!visible}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="new-password"
-                  textContentType="newPassword"
-                  editable={!busy}
-                  returnKeyType="go"
-                  onSubmitEditing={() => void submit()}
-                />
+                <View style={[styles.fieldRow, focused === 'confirmation' && styles.focused]}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#8196b3" style={styles.fieldIcon} />
+                  <TextInput
+                    ref={confirmationInput}
+                    style={styles.fieldInput}
+                    accessibilityLabel="Confirmar senha"
+                    placeholder="Repita sua senha"
+                    placeholderTextColor="#95a5bd"
+                    value={confirmation}
+                    onChangeText={setConfirmation}
+                    onFocus={() => setFocused('confirmation')}
+                    onBlur={() => setFocused(null)}
+                    secureTextEntry={!visible}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="new-password"
+                    textContentType="newPassword"
+                    editable={!busy}
+                    returnKeyType="go"
+                    onSubmitEditing={() => void submit()}
+                  />
+                </View>
               </>
             )}
 
@@ -245,14 +248,13 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
             {!busy && (
               <>
                 <Text style={styles.footer}>{registering ? 'Já tem uma conta?' : 'Ainda não tem uma conta?'}</Text>
-                <Link
-                  href={registering ? '/login' : '/cadastro'}
-                  replace
+                <TouchableOpacity
+                  accessibilityRole="button"
                   style={styles.link}
                   onPress={() => selectEntry(registering ? 'login' : 'cadastro')}
                 >
-                  {registering ? 'Entrar na minha conta' : 'Cadastre-se gratuitamente'}
-                </Link>
+                  <Text style={styles.link}>{registering ? 'Entrar na minha conta' : 'Cadastre-se gratuitamente'}</Text>
+                </TouchableOpacity>
               </>
             )}
 
