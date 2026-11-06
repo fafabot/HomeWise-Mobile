@@ -29,6 +29,22 @@ type MetodoPagamento = 'pix' | 'cartao';
 // Tempo em que a confirmação do pagamento simulado fica visível
 const DURACAO_CONFIRMACAO_MS = 5000;
 
+function validarCPF(cpf: string): boolean {
+  const limpo = cpf.replace(/\D/g, '');
+  if (limpo.length !== 11 || /^(\d)\1{10}$/.test(limpo)) return false;
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(limpo.charAt(i), 10) * (10 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(limpo.charAt(9), 10)) return false;
+
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(limpo.charAt(i), 10) * (11 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  return resto === parseInt(limpo.charAt(10), 10);
+}
+
 export default function GerenciarAssinaturaScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ checkout?: string }>();
@@ -49,6 +65,21 @@ export default function GerenciarAssinaturaScreen() {
   const [planoEmCheckout, setPlanoEmCheckout] = useState<Plano | null>(null);
   const [metodo, setMetodo] = useState<MetodoPagamento>('pix');
   const [pixCopiado, setPixCopiado] = useState(false);
+
+  // Dados cadastrais e de endereço de cobrança da assinatura
+  const [nomeAssinante, setNomeAssinante] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [cep, setCep] = useState('');
+  const [statusCep, setStatusCep] = useState('');
+  const [rua, setRua] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [estado, setEstado] = useState('');
+
+  // Dados do cartão de crédito
   const [numCartao, setNumCartao] = useState('');
   const [nomeCartao, setNomeCartao] = useState('');
   const [validadeCartao, setValidadeCartao] = useState('');
@@ -107,10 +138,72 @@ export default function GerenciarAssinaturaScreen() {
   function abrirCheckout(plano: Plano) {
     setErroPagamento('');
     setPixCopiado(false);
-    if (!nomeCartao && (perfil?.nome || user?.displayName)) {
-      setNomeCartao((perfil?.nome || user?.displayName || '').toUpperCase());
+    setStatusCep('');
+
+    const nomePadrao = perfil?.nome || user?.displayName || '';
+    if (!nomeAssinante && nomePadrao) setNomeAssinante(nomePadrao);
+    if (!cpf && perfil?.cpf) setCpf(perfil.cpf);
+    if (!telefone && perfil?.telefone) setTelefone(perfil.telefone);
+    if (!cep && perfil?.cep) setCep(perfil.cep);
+    if (!rua && perfil?.endereco_detalhado?.rua) setRua(perfil.endereco_detalhado.rua);
+    if (!numero && perfil?.endereco_detalhado?.numero) setNumero(perfil.endereco_detalhado.numero);
+    if (!complemento && perfil?.endereco_detalhado?.complemento) setComplemento(perfil.endereco_detalhado.complemento);
+    if (!bairro && perfil?.endereco_detalhado?.bairro) setBairro(perfil.endereco_detalhado.bairro);
+    if (!cidade && perfil?.endereco_detalhado?.cidade) setCidade(perfil.endereco_detalhado.cidade);
+    if (!estado && perfil?.endereco_detalhado?.estado) setEstado(perfil.endereco_detalhado.estado);
+
+    if (!nomeCartao && nomePadrao) {
+      setNomeCartao(nomePadrao.toUpperCase());
     }
     setPlanoEmCheckout(plano);
+  }
+
+  function formatarCpf(texto: string) {
+    const digitos = texto.replace(/\D/g, '').slice(0, 11);
+    const formatado = digitos
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    setCpf(formatado);
+  }
+
+  function formatarTelefone(texto: string) {
+    const digitos = texto.replace(/\D/g, '').slice(0, 11);
+    let formatado = digitos;
+    if (digitos.length > 2) {
+      formatado = `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
+    }
+    if (digitos.length > 7) {
+      formatado = `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+    }
+    setTelefone(formatado);
+  }
+
+  async function formatarCep(texto: string) {
+    const digitos = texto.replace(/\D/g, '').slice(0, 8);
+    const formatado = digitos.length > 5 ? `${digitos.slice(0, 5)}-${digitos.slice(5)}` : digitos;
+    setCep(formatado);
+
+    if (digitos.length === 8) {
+      setStatusCep('Buscando CEP…');
+      try {
+        const resp = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
+        const dados = await resp.json();
+        if (!dados.erro) {
+          if (dados.logradouro) setRua(dados.logradouro);
+          if (dados.bairro) setBairro(dados.bairro);
+          if (dados.localidade) setCidade(dados.localidade);
+          if (dados.uf) setEstado(dados.uf);
+          setStatusCep('Endereço preenchido');
+        } else {
+          setStatusCep('CEP não encontrado');
+        }
+      } catch {
+        setStatusCep('');
+      }
+    } else {
+      setStatusCep('');
+    }
   }
 
   function formatarCartao(texto: string) {
@@ -127,6 +220,27 @@ export default function GerenciarAssinaturaScreen() {
   async function confirmarPagamentoSimulado() {
     if (!planoEmCheckout || processandoPagamento) return;
     setErroPagamento('');
+
+    if (nomeAssinante.trim().length < 3) {
+      setErroPagamento('Informe o nome completo do titular da assinatura.');
+      return;
+    }
+    if (!validarCPF(cpf)) {
+      setErroPagamento('Informe um CPF válido (11 dígitos).');
+      return;
+    }
+    if (telefone.replace(/\D/g, '').length < 10) {
+      setErroPagamento('Informe um telefone/celular com DDD válido.');
+      return;
+    }
+    if (cep.replace(/\D/g, '').length !== 8) {
+      setErroPagamento('Informe um CEP válido de 8 dígitos.');
+      return;
+    }
+    if (!rua.trim() || !numero.trim() || !bairro.trim() || !cidade.trim() || estado.trim().length !== 2) {
+      setErroPagamento('Preencha o endereço completo (Rua, Número, Bairro, Cidade e UF).');
+      return;
+    }
 
     if (metodo === 'cartao') {
       const digitosCartao = numCartao.replace(/\D/g, '');
@@ -150,12 +264,31 @@ export default function GerenciarAssinaturaScreen() {
       }
     }
 
+    const enderecoFormatado = `${rua.trim()}, ${numero.trim()}${
+      complemento.trim() ? ` - ${complemento.trim()}` : ''
+    }, ${bairro.trim()} - ${cidade.trim()}/${estado.trim().toUpperCase()} (CEP: ${cep.trim()})`;
+
     setProcessandoPagamento(true);
     setSalvandoId(planoEmCheckout.id);
     try {
       // Simula tempo de aprovação da transação
       await new Promise(resolve => setTimeout(resolve, 900));
-      const ok = await atualizarPlanoAssinatura(planoEmCheckout.id, ciclo);
+      const ok = await atualizarPlanoAssinatura(planoEmCheckout.id, ciclo, {
+        nome: nomeAssinante.trim(),
+        cpf: cpf.trim(),
+        telefone: telefone.trim(),
+        cep: cep.trim(),
+        residencia: enderecoFormatado,
+        endereco_detalhado: {
+          rua: rua.trim(),
+          numero: numero.trim(),
+          complemento: complemento.trim(),
+          bairro: bairro.trim(),
+          cidade: cidade.trim(),
+          estado: estado.trim().toUpperCase(),
+        },
+        metodo_pagamento: metodo,
+      });
       if (ok) {
         const metodoLabel = metodo === 'pix' ? 'PIX' : 'Cartão de Crédito';
         setMensagem('');
@@ -431,8 +564,152 @@ export default function GerenciarAssinaturaScreen() {
                 <Text style={styles.summaryValue}>{valorCheckout}</Text>
               </View>
 
-              {/* Abas de Método de Pagamento */}
-              <Text style={styles.fieldLabel}>Escolha a forma de pagamento</Text>
+              {/* Seção 1: Dados do Assinante */}
+              <View style={styles.sectionBlock}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="person-outline" size={15} color="#22b7d4" />
+                  <Text style={styles.sectionTitle}>Dados do assinante</Text>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>Nome completo *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={nomeAssinante}
+                    onChangeText={setNomeAssinante}
+                    placeholder="Seu nome completo"
+                    placeholderTextColor="#7f97a6"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>CPF *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={cpf}
+                      onChangeText={formatarCpf}
+                      keyboardType="numeric"
+                      placeholder="000.000.000-00"
+                      placeholderTextColor="#7f97a6"
+                      maxLength={14}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Telefone / Celular *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={telefone}
+                      onChangeText={formatarTelefone}
+                      keyboardType="phone-pad"
+                      placeholder="(00) 00000-0000"
+                      placeholderTextColor="#7f97a6"
+                      maxLength={15}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Seção 2: Endereço da Residência e Cobrança */}
+              <View style={styles.sectionBlock}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="location-outline" size={15} color="#22b7d4" />
+                  <Text style={styles.sectionTitle}>Endereço de cobrança / residência</Text>
+                </View>
+
+                <View>
+                  <View style={styles.cepHeaderRow}>
+                    <Text style={styles.fieldLabel}>CEP *</Text>
+                    {!!statusCep && (
+                      <Text style={styles.cepStatusText}>{statusCep}</Text>
+                    )}
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={cep}
+                    onChangeText={t => void formatarCep(t)}
+                    keyboardType="numeric"
+                    placeholder="00000-000"
+                    placeholderTextColor="#7f97a6"
+                    maxLength={9}
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>Rua / Avenida *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={rua}
+                    onChangeText={setRua}
+                    placeholder="Nome da rua ou avenida"
+                    placeholderTextColor="#7f97a6"
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Número *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={numero}
+                      onChangeText={setNumero}
+                      placeholder="123"
+                      placeholderTextColor="#7f97a6"
+                    />
+                  </View>
+                  <View style={{ flex: 1.4 }}>
+                    <Text style={styles.fieldLabel}>Complemento</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={complemento}
+                      onChangeText={setComplemento}
+                      placeholder="Apto, Bloco (opcional)"
+                      placeholderTextColor="#7f97a6"
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1.2 }}>
+                    <Text style={styles.fieldLabel}>Bairro *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={bairro}
+                      onChangeText={setBairro}
+                      placeholder="Seu bairro"
+                      placeholderTextColor="#7f97a6"
+                    />
+                  </View>
+                  <View style={{ flex: 1.2 }}>
+                    <Text style={styles.fieldLabel}>Cidade *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={cidade}
+                      onChangeText={setCidade}
+                      placeholder="Cidade"
+                      placeholderTextColor="#7f97a6"
+                    />
+                  </View>
+                  <View style={{ width: 64 }}>
+                    <Text style={styles.fieldLabel}>UF *</Text>
+                    <TextInput
+                      style={[styles.input, { textAlign: 'center' }]}
+                      value={estado}
+                      onChangeText={t => setEstado(t.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2))}
+                      placeholder="SP"
+                      placeholderTextColor="#7f97a6"
+                      autoCapitalize="characters"
+                      maxLength={2}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Seção 3: Abas de Método de Pagamento */}
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons name="wallet-outline" size={15} color="#22b7d4" />
+                <Text style={styles.sectionTitle}>Forma de pagamento</Text>
+              </View>
               <View style={styles.payTabs}>
                 <TouchableOpacity
                   accessibilityRole="tab"
@@ -833,6 +1110,38 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '800',
+  },
+  sectionBlock: {
+    backgroundColor: '#07131b',
+    borderWidth: 1,
+    borderColor: '#122a39',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    gap: 10,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  cepHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cepStatusText: {
+    color: '#22b7d4',
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   fieldLabel: {
     color: '#9db1bd',

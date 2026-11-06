@@ -15,7 +15,11 @@ interface AuthContextType {
   entry: Entry;
   selectEntry: (entry: Entry) => void;
   atualizarDispositivoId: (novoId: string) => Promise<boolean>;
-  atualizarPlanoAssinatura: (planoId: PlanoId, ciclo?: CicloAssinatura) => Promise<boolean>;
+  atualizarPlanoAssinatura: (
+    planoId: PlanoId,
+    ciclo?: CicloAssinatura,
+    dadosFaturamento?: Partial<DadosUsuario>
+  ) => Promise<boolean>;
   cancelarAssinatura: () => Promise<boolean>;
 }
 
@@ -90,10 +94,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }
 
-  async function atualizarPlanoAssinatura(planoId: PlanoId, ciclo: CicloAssinatura = 'mensal'): Promise<boolean> {
+  async function atualizarPlanoAssinatura(
+    planoId: PlanoId,
+    ciclo: CicloAssinatura = 'mensal',
+    dadosFaturamento?: Partial<DadosUsuario>
+  ): Promise<boolean> {
     if (!user) return false;
     const infoPlano = obterPlanoPorId(planoId);
     return await salvarPerfilFirestore(user.uid, {
+      ...dadosFaturamento,
       plano: planoId,
       plano_nome: infoPlano?.nome || planoId,
       ciclo_assinatura: ciclo,
