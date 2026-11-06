@@ -25,6 +25,7 @@ export default function AlterarSenhaScreen() {
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [mostrarSenhaAtual, setMostrarSenhaAtual] = useState(false);
   const [mostrarNovaSenha, setMostrarNovaSenha] = useState(false);
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   // O Enter do teclado (onSubmitEditing) não respeita o botão desabilitado: o ref impede envio duplicado
   const enviando = useRef(false);
@@ -118,8 +119,9 @@ export default function AlterarSenhaScreen() {
               valor={confirmarSenha}
               onChange={setConfirmarSenha}
               placeholder="Repita a nova senha"
+              visivel={mostrarConfirmarSenha}
+              onAlternar={() => setMostrarConfirmarSenha(!mostrarConfirmarSenha)}
               onEnviar={() => void handleSalvarSenha()}
-              visivel={mostrarNovaSenha}
               tipo="nova"
             />
 

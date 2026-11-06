@@ -24,6 +24,8 @@ export interface DadosUsuario {
   metas_consumo?: { agua?: number; energia?: number };
   residencia?: string;
   cep?: string;
+  cidade?: string;
+  estado?: string;
   plano?: 'basico' | 'plus' | 'premium' | null;
   plano_nome?: string | null;
   ciclo_assinatura?: 'mensal' | 'anual';
