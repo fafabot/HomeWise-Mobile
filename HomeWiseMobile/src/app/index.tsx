@@ -122,13 +122,20 @@ export default function HomeScreen() {
   const custoEnergia = energiaPrevistaMesNum * TARIFA_ENERGIA_KWH;
   const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
 
-  // Gasto em R$ medido hoje e previsto para o fechamento do dia de hoje
-  const custoAguaHoje = (aguaHojeNum * TARIFA_AGUA_POR_LITRO).toFixed(2).replace('.', ',');
-  const custoEnergiaHoje = (energiaHojeNum * TARIFA_ENERGIA_KWH).toFixed(2).replace('.', ',');
-  const aguaPrevistaDiaNum = Math.max(aguaHojeNum, statusBaseline.mediaAguaLitrosDia || 0);
-  const energiaPrevistaDiaNum = Math.max(energiaHojeNum, statusBaseline.mediaEnergiaKwhDia || 0);
-  const custoAguaPrevistoDia = (aguaPrevistaDiaNum * TARIFA_AGUA_POR_LITRO).toFixed(2).replace('.', ',');
-  const custoEnergiaPrevistoDia = (energiaPrevistaDiaNum * TARIFA_ENERGIA_KWH).toFixed(2).replace('.', ',');
+  // Valores financeiros (R$) gastos hoje, acumulados nos dias medidos e media diaria prevista
+  const custoAguaHojeNum = aguaHojeNum * TARIFA_AGUA_POR_LITRO;
+  const custoEnergiaHojeNum = energiaHojeNum * TARIFA_ENERGIA_KWH;
+  const custoTotalHoje = totaisDisponiveis ? (custoAguaHojeNum + custoEnergiaHojeNum).toFixed(2).replace('.', ',') : '--';
+  const custoAguaHoje = totaisDisponiveis ? custoAguaHojeNum.toFixed(2).replace('.', ',') : '--';
+  const custoEnergiaHoje = totaisDisponiveis ? custoEnergiaHojeNum.toFixed(2).replace('.', ',') : '--';
+
+  const custoAcumuladoMesNum = (aguaMesNum * TARIFA_AGUA_POR_LITRO) + (energiaMesNum * TARIFA_ENERGIA_KWH);
+  const custoAcumuladoMes = totaisDisponiveis ? custoAcumuladoMesNum.toFixed(2).replace('.', ',') : '--';
+
+  const custoMedioDiaAprendidoNum =
+    (statusBaseline.mediaAguaLitrosDia * TARIFA_AGUA_POR_LITRO) +
+    (statusBaseline.mediaEnergiaKwhDia * TARIFA_ENERGIA_KWH);
+  const custoMedioDiaAprendido = totaisDisponiveis ? custoMedioDiaAprendidoNum.toFixed(2).replace('.', ',') : '--';
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
   const possivelVazamento = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
@@ -297,6 +304,26 @@ export default function HomeScreen() {
                 <Ionicons name="cash-outline" size={22} color={C.ok} />
               </View>
             </View>
+
+            {totaisDisponiveis && (
+              <View style={styles.resumoFinanceiroBox}>
+                <View style={styles.resumoFinanceiroCol}>
+                  <Text style={styles.resumoFinanceiroLabel}>Gasto no dia (hoje)</Text>
+                  <Text style={styles.resumoFinanceiroValor}>R$ {custoTotalHoje}</Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>
+                    Água R$ {custoAguaHoje} • Energia R$ {custoEnergiaHoje}
+                  </Text>
+                </View>
+                <View style={styles.resumoFinanceiroDivisor} />
+                <View style={styles.resumoFinanceiroCol}>
+                  <Text style={styles.resumoFinanceiroLabel}>Gasto acumulado ({diasComputadosMes}d)</Text>
+                  <Text style={styles.resumoFinanceiroValor}>R$ {custoAcumuladoMes}</Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>
+                    Média aprendida: R$ {custoMedioDiaAprendido}/dia
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Consumo de hoje */}
@@ -308,8 +335,9 @@ export default function HomeScreen() {
               rotulo="Água hoje"
               valor={aguaHoje}
               unidade="L"
-              gastoDia={totaisDisponiveis ? `Hoje: R$ ${custoAguaHoje} • Prev. dia: R$ ${custoAguaPrevistoDia}` : undefined}
-              mes={totaisDisponiveis ? `${aguaMes} L este mês (${diasComputadosMes}d) • Prev: ${aguaMesPrevisto} L` : `${aguaMes} L este mês`}
+              gastoDia={totaisDisponiveis ? `Gasto no dia: R$ ${custoAguaHoje}` : undefined}
+              mesMedido={totaisDisponiveis ? `${aguaMes} L (${diasComputadosMes}d)` : `${aguaMes} L este mês`}
+              previsaoMes={totaisDisponiveis ? `Previsto: ${aguaMesPrevisto} L` : undefined}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/agua')}
             />
@@ -319,8 +347,9 @@ export default function HomeScreen() {
               rotulo="Energia hoje"
               valor={energiaHoje}
               unidade="kWh"
-              gastoDia={totaisDisponiveis ? `Hoje: R$ ${custoEnergiaHoje} • Prev. dia: R$ ${custoEnergiaPrevistoDia}` : undefined}
-              mes={totaisDisponiveis ? `${energiaMes} kWh este mês (${diasComputadosMes}d) • Prev: ${energiaMesPrevisto} kWh` : `${energiaMes} kWh este mês`}
+              gastoDia={totaisDisponiveis ? `Gasto no dia: R$ ${custoEnergiaHoje}` : undefined}
+              mesMedido={totaisDisponiveis ? `${energiaMes} kWh (${diasComputadosMes}d)` : `${energiaMes} kWh este mês`}
+              previsaoMes={totaisDisponiveis ? `Previsto: ${energiaMesPrevisto} kWh` : undefined}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/energia')}
             />
@@ -469,14 +498,15 @@ export default function HomeScreen() {
 }
 
 /** Cartão de consumo do dia (água ou energia) que leva à tela de detalhes. */
-function CardConsumo({ icone, cor, rotulo, valor, unidade, gastoDia, mes, desatualizado, onPress }: {
+function CardConsumo({ icone, cor, rotulo, valor, unidade, gastoDia, mesMedido, previsaoMes, desatualizado, onPress }: {
   icone: keyof typeof Ionicons.glyphMap;
   cor: string;
   rotulo: string;
   valor: string;
   unidade: string;
   gastoDia?: string;
-  mes: string;
+  mesMedido: string;
+  previsaoMes?: string;
   desatualizado: boolean;
   onPress: () => void;
 }) {
@@ -486,7 +516,7 @@ function CardConsumo({ icone, cor, rotulo, valor, unidade, gastoDia, mes, desatu
       activeOpacity={0.8}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${rotulo}: ${valor} ${unidade}.${gastoDia ? ` ${gastoDia}.` : ''} ${mes}.${desatualizado ? ' Desatualizado.' : ''} Abrir detalhes`}
+      accessibilityLabel={`${rotulo}: ${valor} ${unidade}.${gastoDia ? ` ${gastoDia}.` : ''} ${mesMedido}.${previsaoMes ? ` ${previsaoMes}.` : ''}${desatualizado ? ' Desatualizado.' : ''} Abrir detalhes`}
     >
       <View style={styles.miniCardTopo}>
         <View style={[styles.miniCardIcone, { backgroundColor: `${cor}1f` }]}>
@@ -498,9 +528,10 @@ function CardConsumo({ icone, cor, rotulo, valor, unidade, gastoDia, mes, desatu
       <Text style={styles.miniCardValor} numberOfLines={1} adjustsFontSizeToFit>
         {valor}<Text style={styles.miniCardUnidade}> {unidade}</Text>
       </Text>
-      {gastoDia ? <Text style={[styles.miniCardGastoDia, { color: cor }]}>{gastoDia}</Text> : null}
+      {gastoDia ? <Text style={[styles.miniCardGastoDia, { color: cor }]} numberOfLines={1}>{gastoDia}</Text> : null}
       <View style={[styles.miniCardTraco, { backgroundColor: cor }]} />
-      <Text style={styles.miniCardSub}>{mes}</Text>
+      <Text style={styles.miniCardSub} numberOfLines={1}>{mesMedido}</Text>
+      {previsaoMes ? <Text style={styles.miniCardPrev} numberOfLines={1}>{previsaoMes}</Text> : null}
       <SeloDesatualizado visivel={desatualizado} />
     </TouchableOpacity>
   );
@@ -759,6 +790,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center'
   },
+  resumoFinanceiroBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: C.fundo,
+    borderWidth: 1,
+    borderColor: C.bordaSuave,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
+  },
+  resumoFinanceiroCol: {
+    flex: 1
+  },
+  resumoFinanceiroDivisor: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: C.bordaSuave
+  },
+  resumoFinanceiroLabel: {
+    color: C.textoSec,
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginBottom: 2
+  },
+  resumoFinanceiroValor: {
+    color: C.texto,
+    fontSize: 16,
+    fontWeight: '800',
+    ...NUMEROS
+  },
+  resumoFinanceiroDetalhe: {
+    color: C.textoTer,
+    fontSize: 11,
+    marginTop: 2,
+    ...NUMEROS
+  },
 
   // Seções
   secaoHeader: {
@@ -832,9 +903,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0
   },
   miniCardGastoDia: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 5,
+    marginTop: 4,
     ...NUMEROS
   },
   miniCardTraco: {
@@ -847,6 +918,13 @@ const styles = StyleSheet.create({
   miniCardSub: {
     color: C.textoTer,
     fontSize: 12,
+    ...NUMEROS
+  },
+  miniCardPrev: {
+    color: C.textoTer,
+    fontSize: 11,
+    marginTop: 2,
+    opacity: 0.85,
     ...NUMEROS
   },
 
