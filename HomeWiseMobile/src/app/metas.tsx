@@ -129,7 +129,8 @@ export default function MetasScreen() {
             <View style={s.anel} accessibilityLabel={meta ? `${Math.round(percentual)}% da meta consumidos` : 'Meta não definida'}>
               <Svg width={152} height={152} viewBox="0 0 152 152">
                 <Circle cx={76} cy={76} r={58} fill="none" stroke={C.superficieAlta} strokeWidth={12} />
-                {meta > 0 && percentual > 0 && <Circle cx={76} cy={76} r={58} fill="none" stroke={excedeu ? C.perigo : cor} strokeWidth={12} strokeLinecap="round" strokeDasharray={`${circunferencia} ${circunferencia}`} strokeDashoffset={circunferencia * (1 - Math.min(percentual, 100) / 100)} rotation={-90} origin="76, 76" />}
+                {/* Gira em torno do centro via `transform`: no web, `origin` vira o atributo inválido `transform-origin` no DOM. */}
+                {meta > 0 && percentual > 0 && <Circle cx={76} cy={76} r={58} fill="none" stroke={excedeu ? C.perigo : cor} strokeWidth={12} strokeLinecap="round" strokeDasharray={`${circunferencia} ${circunferencia}`} strokeDashoffset={circunferencia * (1 - Math.min(percentual, 100) / 100)} transform="rotate(-90 76 76)" />}
               </Svg>
               <View style={s.centroAnel}><Text style={[s.percentual, excedeu && s.erro]}>{meta ? `${Math.round(percentual)}%` : '—'}</Text><Text style={s.legenda}>{meta ? 'da meta' : 'sem meta'}</Text></View>
             </View>
