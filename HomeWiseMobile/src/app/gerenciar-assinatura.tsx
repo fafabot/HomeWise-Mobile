@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
@@ -45,12 +46,22 @@ function validarCPF(cpf: string): boolean {
   return resto === parseInt(limpo.charAt(10), 10);
 }
 
+/** Texto da confirmação, a partir do plano e ciclo efetivamente gravados. */
+export function textoConfirmacaoContratacao(nomePlano: string, ciclo: CicloAssinatura) {
+  return `Simulação concluída: plano HomeWise ${nomePlano} ${ciclo === 'anual' ? 'anual' : 'mensal'} ativado.`;
+}
+
 export default function GerenciarAssinaturaScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ checkout?: string }>();
-  const { user, perfil, atualizarPlanoAssinatura, cancelarAssinatura } = useAuth();
+  const { user, perfil, atualizarPlanoAssinatura, cancelarAssinatura, assinaturaPendente,
+    assinaturaEstado, assinaturaMensagem, assinaturaEscritaLiberada, reconciliarAssinatura } = useAuth();
+  const assinaturaIndefinida = assinaturaEstado === 'inconsistente' || assinaturaEstado === 'consultando';
+  const escritaBloqueada = !assinaturaEscritaLiberada || assinaturaIndefinida || assinaturaPendente;
+  const rolagem = useRef<ComponentRef<typeof ScrollView>>(null);
   const ativo = temPlanoAtivo(perfil?.plano, perfil?.status_assinatura);
   const planoSalvo = ativo ? obterPlanoPorId(perfil?.plano) : null;
+  const cicloAtual: CicloAssinatura = perfil?.ciclo_assinatura === 'anual' ? 'anual' : 'mensal';
 
   const [ciclo, setCiclo] = useState<CicloAssinatura>(
     perfil?.ciclo_assinatura === 'anual' ? 'anual' : 'mensal'
@@ -86,10 +97,18 @@ export default function GerenciarAssinaturaScreen() {
   const [cvvCartao, setCvvCartao] = useState('');
   const [erroPagamento, setErroPagamento] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+  const [demorando, setDemorando] = useState(false);
+  const emEnvio = useRef(false);
+  const prazoEspera = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Confirmação temporária do pagamento simulado: fica só em memória, some após 5 s
   // e não reaparece ao reabrir ou recarregar a tela.
   const [confirmacao, setConfirmacao] = useState('');
+  const [estadoDaConfirmacao, setEstadoDaConfirmacao] = useState(assinaturaEstado);
+  if (estadoDaConfirmacao !== assinaturaEstado) {
+    setEstadoDaConfirmacao(assinaturaEstado);
+    if (assinaturaIndefinida && confirmacao) setConfirmacao('');
+  }
   const temporizadorConfirmacao = useRef<ReturnType<typeof setTimeout> | null>(null);
   const montada = useRef(true);
   useEffect(() => {
@@ -98,6 +117,7 @@ export default function GerenciarAssinaturaScreen() {
       montada.current = false;
       if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
       temporizadorConfirmacao.current = null;
+      if (prazoEspera.current) clearTimeout(prazoEspera.current);
     };
   }, []);
 
@@ -106,6 +126,9 @@ export default function GerenciarAssinaturaScreen() {
     if (!montada.current) return;
     if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
     setConfirmacao(texto);
+    // Web: role="alert" anuncia. iOS não anuncia regiões vivas; Android anuncia, e o anúncio explícito
+    // garante a leitura mesmo com o foco ainda saindo do checkout.
+    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(`${texto} Nenhuma cobrança real foi feita.`);
     temporizadorConfirmacao.current = setTimeout(() => {
       temporizadorConfirmacao.current = null;
       setConfirmacao('');
@@ -136,6 +159,7 @@ export default function GerenciarAssinaturaScreen() {
   }
 
   function abrirCheckout(plano: Plano) {
+    if (!assinaturaEscritaLiberada || assinaturaIndefinida || assinaturaPendente || processandoPagamento) return;
     setErroPagamento('');
     setPixCopiado(false);
     setStatusCep('');
@@ -218,7 +242,7 @@ export default function GerenciarAssinaturaScreen() {
   }
 
   async function confirmarPagamentoSimulado() {
-    if (!planoEmCheckout || processandoPagamento) return;
+    if (!assinaturaEscritaLiberada || assinaturaIndefinida || !planoEmCheckout || emEnvio.current || assinaturaPendente) return;
     setErroPagamento('');
 
     if (nomeAssinante.trim().length < 3) {
@@ -268,12 +292,22 @@ export default function GerenciarAssinaturaScreen() {
       complemento.trim() ? ` - ${complemento.trim()}` : ''
     }, ${bairro.trim()} - ${cidade.trim()}/${estado.trim().toUpperCase()} (CEP: ${cep.trim()})`;
 
+    // Plano e ciclo desta tentativa: a confirmação usa exatamente o que foi enviado e gravado.
+    const planoEscolhido = planoEmCheckout;
+    const cicloEscolhido = ciclo;
+    emEnvio.current = true;
+    setDemorando(false);
+    prazoEspera.current = setTimeout(() => {
+      if (montada.current) setDemorando(true);
+    }, 10000);
     setProcessandoPagamento(true);
-    setSalvandoId(planoEmCheckout.id);
+    setSalvandoId(planoEscolhido.id);
+    // O try cobre só a gravação: um erro na interface depois do sucesso nunca vira "não concluída".
+    let ok = false;
     try {
       // Simula tempo de aprovação da transação
       await new Promise(resolve => setTimeout(resolve, 900));
-      const ok = await atualizarPlanoAssinatura(planoEmCheckout.id, ciclo, {
+      ok = (await atualizarPlanoAssinatura(planoEscolhido.id, cicloEscolhido, {
         nome: nomeAssinante.trim(),
         cpf: cpf.trim(),
         telefone: telefone.trim(),
@@ -288,27 +322,37 @@ export default function GerenciarAssinaturaScreen() {
           estado: estado.trim().toUpperCase(),
         },
         metodo_pagamento: metodo,
-      });
-      if (ok) {
-        const metodoLabel = metodo === 'pix' ? 'PIX' : 'Cartão de Crédito';
-        setMensagem('');
-        setMensagemErro(false);
-        setConfirmandoCancelamento(false);
-        mostrarConfirmacao(
-          `Plano HomeWise ${planoEmCheckout.nome} (${ciclo}) ativado. Pagamento via ${metodoLabel} simulado.`
-        );
-        setPlanoEmCheckout(null);
-      } else {
-        setErroPagamento('Não foi possível ativar o plano. Verifique sua conexão.');
-      }
+      })) === true;
+    } catch {
+      ok = false;
     } finally {
-      setProcessandoPagamento(false);
-      setSalvandoId(null);
+      emEnvio.current = false;
+      if (prazoEspera.current) clearTimeout(prazoEspera.current);
+      prazoEspera.current = null;
+      if (montada.current) {
+        setDemorando(false);
+        setProcessandoPagamento(false);
+        setSalvandoId(null);
+      }
     }
+    if (!montada.current) return;
+    if (!ok) {
+      // Checkout continua aberto, com a falha; nada indica contratação concluída.
+      setErroPagamento('Não foi possível confirmar a ativação. Confira o estado da assinatura antes de tentar novamente.');
+      return;
+    }
+    setMensagem('');
+    setMensagemErro(false);
+    setConfirmandoCancelamento(false);
+    setPlanoEmCheckout(null);
+    mostrarConfirmacao(textoConfirmacaoContratacao(planoEscolhido.nome, cicloEscolhido));
+    rolagem.current?.scrollTo({ y: 0, animated: true });
+    // Por último: recarregar não deve reabrir o checkout de um plano já contratado.
+    if (params.checkout) router.setParams?.({ checkout: undefined });
   }
 
   async function handleCancelar() {
-    if (salvandoId) return;
+    if (escritaBloqueada || salvandoId) return;
     setSalvandoId('cancelar');
     setMensagem('');
     setMensagemErro(false);
@@ -335,7 +379,11 @@ export default function GerenciarAssinaturaScreen() {
   const codigoPixDemo = `00020126580014BR.GOV.BCB.PIX0136homewise-tcc-${planoEmCheckout?.id || 'plus'}-${ciclo}5204000053039865802BR5916HOMEWISEMONITORA6009SAOPAULO62070503***6304A1B2`;
 
   return (
-    <SubscriptionScreen title="Gerenciar assinatura" onBack={() => (router.canGoBack() ? router.back() : router.replace('/perfil'))}>
+    <SubscriptionScreen scrollRef={rolagem} title="Gerenciar assinatura" onBack={() => (router.canGoBack() ? router.back() : router.replace('/perfil'))}>
+      {!assinaturaEscritaLiberada && <Text accessibilityRole="alert" style={s.subtitle}>Alterações de assinatura bloqueadas: a política implantada ainda não foi homologada. A simulação está disponível somente na revisão local com mocks.</Text>}
+      {!!assinaturaMensagem && <Text accessibilityRole="alert" style={s.subtitle}>{assinaturaMensagem}</Text>}
+      {assinaturaIndefinida && <TouchableOpacity accessibilityRole="button" disabled={assinaturaEstado === 'consultando'} onPress={() => void reconciliarAssinatura()}><Text style={s.subtitle}>Consultar assinatura no servidor</Text></TouchableOpacity>}
+      {assinaturaPendente && <Text accessibilityRole="alert" style={s.subtitle}>Ativação ou alteração pendente de confirmação. Não reenvie: a operação pode terminar ao reconectar.</Text>}
       <Text style={s.eyebrow}>PLANOS HOMEWISE</Text>
       <Text style={s.title}>O plano certo para sua casa.</Text>
       <Text style={s.subtitle}>Planos flexíveis e sem fidelidade. Economize mais, pague menos.</Text>
@@ -347,8 +395,8 @@ export default function GerenciarAssinaturaScreen() {
         <View style={styles.currentText}>
           <Text style={styles.currentLabel}>SUA ASSINATURA ATUAL</Text>
           <Text style={styles.currentName}>
-            {planoSalvo
-              ? `HomeWise ${planoSalvo.nome} (${perfil?.ciclo_assinatura === 'anual' ? 'Anual' : 'Mensal'})`
+            {assinaturaIndefinida ? 'Assinatura em verificação' : planoSalvo
+              ? `HomeWise ${planoSalvo.nome} (${cicloAtual === 'anual' ? 'Anual' : 'Mensal'})`
               : 'Sem plano contratado'}
           </Text>
         </View>
@@ -357,7 +405,7 @@ export default function GerenciarAssinaturaScreen() {
             accessibilityRole="button"
             accessibilityLabel="Cancelar assinatura"
             accessibilityState={{ disabled: !!salvandoId, expanded: confirmandoCancelamento }}
-            disabled={!!salvandoId}
+            disabled={!!salvandoId || escritaBloqueada}
             style={styles.cancelPill}
             onPress={() => { setMensagem(''); setConfirmandoCancelamento(true); }}
           >
@@ -387,7 +435,7 @@ export default function GerenciarAssinaturaScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityState={{ disabled: !!salvandoId, busy: salvandoId === 'cancelar' }}
-              disabled={!!salvandoId}
+              disabled={!!salvandoId || escritaBloqueada}
               style={[styles.confirmarCancelamentoBotao, !!salvandoId && { opacity: 0.7 }]}
               onPress={() => void handleCancelar()}
             >
@@ -399,13 +447,13 @@ export default function GerenciarAssinaturaScreen() {
         </View>
       )}
 
-      {!!confirmacao && (
+      {!!confirmacao && !assinaturaIndefinida && (
         <View
           style={styles.confirmacao}
           accessible
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
-          accessibilityLabel={`Pagamento aprovado, simulação. ${confirmacao} Checkout demonstrativo, nenhuma cobrança real foi feita.`}
+          accessibilityLabel={`${confirmacao} Checkout demonstrativo, nenhuma cobrança real foi feita.`}
         >
           <View style={styles.confirmacaoIcone}>
             <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
@@ -459,7 +507,7 @@ export default function GerenciarAssinaturaScreen() {
 
       <View style={styles.list}>
         {planos.map(plano => {
-          const ehPlanoAtual = planoSalvo?.id === plano.id && (perfil?.ciclo_assinatura || 'mensal') === ciclo;
+          const ehPlanoAtual = planoSalvo?.id === plano.id && cicloAtual === ciclo;
           const carregandoEste = salvandoId === plano.id;
           return (
             <View key={plano.id} style={[s.card, (plano.id === 'plus' || ehPlanoAtual) && s.featured]}>
@@ -491,7 +539,7 @@ export default function GerenciarAssinaturaScreen() {
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel={`Escolher plano ${plano.nome}`}
-                disabled={ehPlanoAtual || !!salvandoId}
+                disabled={ehPlanoAtual || !!salvandoId || escritaBloqueada}
                 style={[
                   plano.id === 'plus' && !ehPlanoAtual ? s.primary : s.secondary,
                   ehPlanoAtual && styles.currentButton,
@@ -523,7 +571,7 @@ export default function GerenciarAssinaturaScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => {
-          if (!processandoPagamento) setPlanoEmCheckout(null);
+          if (!processandoPagamento || demorando) setPlanoEmCheckout(null);
         }}
       >
         <KeyboardAvoidingView
@@ -546,7 +594,7 @@ export default function GerenciarAssinaturaScreen() {
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityLabel="Fechar pagamento"
-                  disabled={processandoPagamento}
+                  disabled={processandoPagamento && !demorando}
                   onPress={() => setPlanoEmCheckout(null)}
                   style={styles.closeBtn}
                 >
@@ -838,6 +886,7 @@ export default function GerenciarAssinaturaScreen() {
                 </View>
               )}
 
+              {demorando && <Text accessibilityRole="alert" style={s.subtitle}>Ainda aguardando confirmação. Sem conexão, a gravação permanece pendente. Este prazo não cancela a operação; você pode fechar e acompanhar o estado sem reenviar.</Text>}
               {!!erroPagamento && (
                 <Text accessibilityRole="alert" style={styles.errorText}>
                   {erroPagamento}
@@ -846,7 +895,7 @@ export default function GerenciarAssinaturaScreen() {
 
               <TouchableOpacity
                 accessibilityRole="button"
-                disabled={processandoPagamento}
+                disabled={processandoPagamento || assinaturaPendente || !assinaturaEscritaLiberada || assinaturaIndefinida}
                 style={[s.primary, { marginTop: 16 }, processandoPagamento && { opacity: 0.7 }]}
                 onPress={() => void confirmarPagamentoSimulado()}
               >

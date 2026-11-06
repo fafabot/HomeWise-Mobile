@@ -20,7 +20,7 @@ function harness({ perfil = {}, dispositivoId = 'central_teste', auth = {}, rout
     canGoBack: () => true,
     ...router,
   };
-  const valorAuth = {
+  const valorAuth = { assinaturaEscritaLiberada: true, assinaturaEstado: 'pronta',
     user: { uid: 'u', email: 'teste@exemplo.com' },
     perfil: { plano: 'plus', status_assinatura: 'ativa', ciclo_assinatura: 'mensal', nome: 'Teste', ...perfil },
     dispositivoId,

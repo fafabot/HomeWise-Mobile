@@ -2,16 +2,18 @@ import { Stack } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import HomeWiseTabBar from '@/components/HomeWiseTabBar';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import LocalReviewNotice from '@/components/LocalReviewNotice';
 
 export default function RootLayout() {
   return <AuthProvider><Navigation /></AuthProvider>;
 }
 
 function Navigation() {
-  const { user, loading, entry } = useAuth();
+  const { user, loading, entry, perfilConcluido } = useAuth();
   if (loading) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator color="#22b7d4" size="large" /></View>;
   return (
     <View style={styles.container}>
+      <LocalReviewNotice />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -19,17 +21,17 @@ function Navigation() {
           animation: 'fade'
         }}
       >
-        <Stack.Protected guard={!entry}>
+        <Stack.Protected guard={!user && !entry}>
           <Stack.Screen name="boas-vindas" />
         </Stack.Protected>
-        <Stack.Protected guard={!user && entry === 'cadastro'}>
+        <Stack.Protected guard={!perfilConcluido && (!!user || entry === 'cadastro')}>
           <Stack.Screen name="cadastro" />
         </Stack.Protected>
         <Stack.Protected guard={!user && entry === 'login'}>
           <Stack.Screen name="login" />
           <Stack.Screen name="recuperar-senha" />
         </Stack.Protected>
-        <Stack.Protected guard={!!user && !!entry}>
+        <Stack.Protected guard={perfilConcluido}>
           <Stack.Screen name="index" />
           <Stack.Screen name="agua" />
           <Stack.Screen name="energia" />
@@ -43,7 +45,7 @@ function Navigation() {
           <Stack.Screen name="escanear-qrcode" options={{ animation: 'slide_from_bottom' }} />
         </Stack.Protected>
       </Stack>
-      {user && entry && <HomeWiseTabBar />}
+      {perfilConcluido && <HomeWiseTabBar />}
     </View>
   );
 }

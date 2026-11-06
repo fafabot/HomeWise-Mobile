@@ -1,15 +1,15 @@
-import type { PropsWithChildren } from 'react';
+import type { ComponentRef, PropsWithChildren, Ref } from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { C, LARGURA_MAXIMA, NUMEROS, alfa } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
-export function SubscriptionScreen({ title, onBack, children }: PropsWithChildren<{ title: string; onBack: () => void }>) {
+export function SubscriptionScreen({ title, onBack, scrollRef, children }: PropsWithChildren<{ title: string; onBack: () => void; scrollRef?: Ref<ComponentRef<typeof ScrollView>> }>) {
   return (
     <SafeAreaView style={subscriptionStyles.screen}>
       <StatusBar barStyle="light-content" />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={subscriptionStyles.content}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={subscriptionStyles.content}>
         <CabecalhoTela titulo={title} onVoltar={onBack} />
         {children}
       </ScrollView>

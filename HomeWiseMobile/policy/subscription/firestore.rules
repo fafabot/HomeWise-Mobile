@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    // Synthetic proof of a trusted identity. Normal clients cannot mint claims.
+    // Admin SDK bypasses rules: real backend IAM still requires separate review.
+    function writer() { return request.auth != null && request.auth.token.get('homewise_subscription_writer', false) == true; }
+    function profileFields() {
+      return ['uid', 'nome', 'email', 'dispositivo_id', 'telefone', 'cpf', 'foto_perfil',
+        'metas_consumo', 'preferencias_notificacoes', 'residencia', 'cep', 'cidade',
+        'estado', 'endereco_detalhado', 'atualizado_em', 'criado_em'];
+    }
+    function subscriptionFields() {
+      return ['plano', 'plano_nome', 'ciclo_assinatura', 'status_assinatura', 'metodo_pagamento',
+        'assinado_em', 'assinatura_operacao_id', 'assinatura_atualizada_em'];
+    }
+    function validSubscription() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['plano', 'plano_nome', 'ciclo_assinatura', 'status_assinatura',
+          'assinatura_operacao_id', 'assinatura_atualizada_em']) &&
+        data.assinatura_operacao_id is string && data.assinatura_operacao_id.size() > 0 && data.assinatura_operacao_id.size() <= 200 &&
+        data.assinatura_operacao_id != resource.data.get('assinatura_operacao_id', '') &&
+        data.assinatura_atualizada_em is timestamp && data.assinatura_atualizada_em == request.time &&
+        data.assinatura_atualizada_em > resource.data.get('assinatura_atualizada_em', timestamp.value(0)) &&
+        data.ciclo_assinatura in ['mensal', 'anual'] &&
+        ((data.status_assinatura == 'ativa' &&
+          ((data.plano == 'basico' && data.plano_nome == 'Básico') ||
+           (data.plano == 'plus' && data.plano_nome == 'Plus') ||
+           (data.plano == 'premium' && data.plano_nome == 'Premium'))) ||
+         (data.status_assinatura in ['cancelada', 'inativa'] && data.plano == null && data.plano_nome == null));
+    }
+    match /usuarios/{uid} {
+      allow read: if owner(uid) || writer();
+      allow create: if owner(uid) && request.resource.data.keys().hasOnly(profileFields()) &&
+        request.resource.data.keys().hasAll(['uid', 'nome', 'email']) && request.resource.data.uid == uid &&
+        request.resource.data.nome is string && request.resource.data.nome.size() > 0 && request.resource.data.email is string;
+      allow update: if
+        (owner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileFields().removeAll(['uid', 'email', 'criado_em']))) ||
+        (writer() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(subscriptionFields().concat(['atualizado_em'])) && validSubscription());
+      allow delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

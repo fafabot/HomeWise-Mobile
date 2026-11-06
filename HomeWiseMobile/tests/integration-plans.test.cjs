@@ -33,7 +33,7 @@ function harness(plan = 'basico') {
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     'expo-router': { useRouter: () => ({ push: route => routes.push(route), replace() {} }), useLocalSearchParams: () => params },
     'react-native-svg': { __esModule: true, default: 'Svg', Circle: 'Circle', Line: 'Line', Polyline: 'Polyline', Text: 'SvgText', Path: 'Path', Rect: 'Rect' },
-    '@/contexts/AuthContext': { useAuth: () => ({ user: { uid: 'fake-user' }, perfil: profile, dispositivoId: 'fake-central' }) },
+    '@/contexts/AuthContext': { useAuth: () => ({ assinaturaEscritaLiberada: true, assinaturaEstado: 'pronta', user: { uid: 'fake-user' }, perfil: profile, dispositivoId: 'fake-central' }) },
     '@/components/AvisoFalhaLeituras': { __esModule: true, default: 'AvisoFalhaLeituras', SeloDesatualizado: 'SeloDesatualizado' },
     '@/components/SubscriptionUI': { SubscriptionScreen: 'SubscriptionScreen', PlanBenefits: 'PlanBenefits', PlanPrice: 'PlanPrice', subscriptionStyles: {} },
     '@/services/authService': { salvarPerfilFirestore: () => assert.fail('Unexpected write') },
