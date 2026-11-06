@@ -13,6 +13,24 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
+export interface PreferenciasNotificacoes {
+  permitir_notificacoes: boolean;
+  vazamento_agua: boolean;
+  pico_energia: boolean;
+  tensao_rede: boolean;
+  desvio_linha_base: boolean;
+  status_central: boolean;
+}
+
+export const PREFERENCIAS_NOTIFICACOES_PADRAO: PreferenciasNotificacoes = {
+  permitir_notificacoes: false,
+  vazamento_agua: true,
+  pico_energia: true,
+  tensao_rede: true,
+  desvio_linha_base: true,
+  status_central: true
+};
+
 export interface DadosUsuario {
   uid: string;
   nome: string;
@@ -22,6 +40,7 @@ export interface DadosUsuario {
   cpf?: string;
   foto_perfil?: string;
   metas_consumo?: { agua?: number; energia?: number };
+  preferencias_notificacoes?: PreferenciasNotificacoes;
   residencia?: string;
   cep?: string;
   cidade?: string;

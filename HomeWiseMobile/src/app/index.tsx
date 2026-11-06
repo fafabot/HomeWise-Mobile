@@ -138,8 +138,15 @@ export default function HomeScreen() {
   const custoMedioDiaAprendido = totaisDisponiveis ? custoMedioDiaAprendidoNum.toFixed(2).replace('.', ',') : '--';
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
-  const possivelVazamento = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
-  const consumoElevado = online && leitura ? (leitura.potencia_w > 3500) : false;
+  const prefsNotif = perfil?.preferencias_notificacoes;
+  const possivelVazamento =
+    online && leitura && (prefsNotif?.vazamento_agua !== false)
+      ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50)
+      : false;
+  const consumoElevado =
+    online && leitura && (prefsNotif?.pico_energia !== false)
+      ? (leitura.potencia_w > 3500)
+      : false;
 
   const dataHoraUltimaLeitura = leitura?.criado_em && leitura.criado_em.getTime() > 0
     ? (ehDeHoje

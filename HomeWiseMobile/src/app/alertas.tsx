@@ -4,7 +4,8 @@ import {
   Text,
   View,
   ScrollView,
-  StatusBar
+  StatusBar,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,10 @@ import {
   calcularStatusBaseline,
   StatusBaseline
 } from '@/services/baselineService';
+import {
+  PREFERENCIAS_NOTIFICACOES_PADRAO,
+  PreferenciasNotificacoes
+} from '@/services/authService';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
@@ -26,12 +31,29 @@ import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
 export default function AlertasScreen() {
   const router = useRouter();
-  const { user, dispositivoId } = useAuth();
+  const { user, perfil, dispositivoId, atualizarPreferenciasNotificacoes } = useAuth();
   const leituras = useLeiturasCentral(user?.uid, dispositivoId);
   const { leitura, historico, historicoDiario, ultima, bruto, diario } = leituras;
   const estadoLeitura = ultima.estado;
   const erroLeitura = ultima.erro;
   const [relogioMs, setRelogioMs] = useState(() => Date.now());
+  const [prefs, setPrefs] = useState<PreferenciasNotificacoes>(() => ({
+    ...PREFERENCIAS_NOTIFICACOES_PADRAO,
+    ...(perfil?.preferencias_notificacoes || {})
+  }));
+  const [mostrarFiltros, setMostrarFiltros] = useState<boolean>(
+    Boolean(perfil?.preferencias_notificacoes?.permitir_notificacoes)
+  );
+  const [mensagemPermissao, setMensagemPermissao] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (perfil?.preferencias_notificacoes) {
+      setPrefs({
+        ...PREFERENCIAS_NOTIFICACOES_PADRAO,
+        ...perfil.preferencias_notificacoes
+      });
+    }
+  }, [perfil?.preferencias_notificacoes]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,9 +79,61 @@ export default function AlertasScreen() {
   );
 
   // Regras reais de anomalia baseadas nos sensores (apenas quando a central está transmitindo ao vivo)
-  const vazamentoAtivo = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
-  const potenciaExcessiva = online && leitura ? (leitura.potencia_w > 3500) : false;
-  const tensaoAnormal = online && leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
+  const vazamentoDetectado = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const potenciaDetectada = online && leitura ? (leitura.potencia_w > 3500) : false;
+  const tensaoDetectada = online && leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
+  const desvioBaselineDetectado =
+    exibivel(dispBaseline) &&
+    statusBaseline.fase === 'calibrado' &&
+    (statusBaseline.comparativoAguaPercent > 20 || statusBaseline.comparativoEnergiaPercent > 20);
+
+  // Aplica os filtros escolhidos pelo usuario quando as notificacoes personalizadas estao configuradas
+  const vazamentoAtivo = vazamentoDetectado && prefs.vazamento_agua;
+  const potenciaExcessiva = potenciaDetectada && prefs.pico_energia;
+  const tensaoAnormal = tensaoDetectada && prefs.tensao_rede;
+  const desvioBaselineAtivo = desvioBaselineDetectado && prefs.desvio_linha_base;
+
+  async function alternarPermissaoGeral() {
+    const novoValor = !prefs.permitir_notificacoes;
+    setMensagemPermissao(null);
+
+    if (novoValor) {
+      const notifGlobal = (globalThis as any).Notification;
+      if (notifGlobal && typeof notifGlobal.requestPermission === 'function') {
+        try {
+          const resultado = await notifGlobal.requestPermission();
+          if (resultado === 'denied') {
+            setMensagemPermissao(
+              'Permissão negada no navegador/sistema. Libere as notificações nas configurações do aparelho para receber avisos.'
+            );
+            return;
+          }
+        } catch {
+          // Segue com a ativacao das preferencias internas no app
+        }
+      }
+      setMostrarFiltros(true);
+      setMensagemPermissao('Notificações ativadas! Escolha abaixo quais tipos de alerta deseja receber.');
+    } else {
+      setMensagemPermissao('Notificações desativadas neste dispositivo.');
+    }
+
+    const novasPrefs: PreferenciasNotificacoes = {
+      ...prefs,
+      permitir_notificacoes: novoValor
+    };
+    setPrefs(novasPrefs);
+    await atualizarPreferenciasNotificacoes(novasPrefs);
+  }
+
+  async function alternarFiltro(chave: keyof Omit<PreferenciasNotificacoes, 'permitir_notificacoes'>) {
+    const novasPrefs: PreferenciasNotificacoes = {
+      ...prefs,
+      [chave]: !prefs[chave]
+    };
+    setPrefs(novasPrefs);
+    await atualizarPreferenciasNotificacoes(novasPrefs);
+  }
 
   const cardStatusCentral = !temCentral
     ? {
@@ -157,7 +231,18 @@ export default function AlertasScreen() {
       corFundo: '#2e2009',
       corTexto: '#facc15'
     }] : []),
-    cardStatusCentral,
+    ...(desvioBaselineAtivo ? [{
+      id: 3.5,
+      tipo: 'aviso',
+      titulo: 'Consumo acima da Linha de Base',
+      local: 'Inteligência HomeTrack • Desvio > 20%',
+      descricao: 'O consumo medido hoje ultrapassou em mais de 20% a média diária aprendida no mês de treinamento.',
+      icone: 'trending-up' as const,
+      corBorda: '#854d0e',
+      corFundo: '#2e2009',
+      corTexto: '#facc15'
+    }] : []),
+    ...(prefs.status_central || online ? [cardStatusCentral] : []),
     !exibivel(dispBaseline) ? {
       id: 5,
       tipo: 'aviso',
@@ -187,9 +272,9 @@ export default function AlertasScreen() {
 
 
   // ----- Apenas apresentação -----
-  // Ids 1–3 são os alertas dos sensores; 4 e 5 são diagnósticos do sistema.
-  const alertasAtivos = alertas.filter((alerta) => alerta.id <= 3);
-  const diagnosticos = alertas.filter((alerta) => alerta.id > 3);
+  // Ids < 4 são os alertas ativos (sensores e desvio de linha de base); >= 4 são diagnósticos do sistema.
+  const alertasAtivos = alertas.filter((alerta) => alerta.id < 4);
+  const diagnosticos = alertas.filter((alerta) => alerta.id >= 4);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -205,6 +290,127 @@ export default function AlertasScreen() {
 
           {/* Aviso de falha nas consultas de leituras (com opção de tentar novamente) */}
           <AvisoFalhaLeituras fontes={leituras.fontes} onTentarNovamente={leituras.tentarNovamente} />
+
+          {/* Card de Permissão e Configuração de Notificações */}
+          <View style={[
+            styles.cardNotificacoes,
+            prefs.permitir_notificacoes
+              ? { borderColor: alfa(C.marca, 0.45) }
+              : { borderColor: C.borda }
+          ]}>
+            <View style={styles.notifHeader}>
+              <View style={[
+                styles.notifIconeBox,
+                { backgroundColor: alfa(prefs.permitir_notificacoes ? C.marca : C.textoSec, 0.14) }
+              ]}>
+                <Ionicons
+                  name={prefs.permitir_notificacoes ? 'notifications' : 'notifications-off-outline'}
+                  size={20}
+                  color={prefs.permitir_notificacoes ? C.marca : C.textoSec}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.notifTituloRow}>
+                  <Text style={styles.notifTitulo}>Permitir notificações</Text>
+                  <View style={[
+                    styles.notifBadgeStatus,
+                    { backgroundColor: alfa(prefs.permitir_notificacoes ? C.ok : C.textoTer, 0.15) }
+                  ]}>
+                    <Text style={[
+                      styles.notifBadgeTexto,
+                      { color: prefs.permitir_notificacoes ? C.ok : C.textoSec }
+                    ]}>
+                      {prefs.permitir_notificacoes ? 'ATIVADAS' : 'DESATIVADAS'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.notifSubtitulo}>
+                  {prefs.permitir_notificacoes
+                    ? 'Você receberá avisos conforme os filtros selecionados abaixo.'
+                    : 'Ative para ser avisado sobre vazamentos, picos e quedas da central.'}
+                </Text>
+              </View>
+              <BotaoSwitch
+                ativo={prefs.permitir_notificacoes}
+                cor={C.marca}
+                rotulo="Permitir notificações"
+                onPress={alternarPermissaoGeral}
+              />
+            </View>
+
+            {mensagemPermissao && (
+              <Text style={styles.notifMensagemFeedback}>{mensagemPermissao}</Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.botaoExpandirFiltros}
+              activeOpacity={0.7}
+              onPress={() => setMostrarFiltros((atual) => !atual)}
+              accessibilityRole="button"
+              accessibilityLabel="Configurar tipos de notificação"
+            >
+              <Ionicons name="options-outline" size={15} color={C.marca} />
+              <Text style={styles.textoExpandirFiltros}>
+                {mostrarFiltros ? 'Ocultar filtros de notificação' : 'Filtrar tipos de notificação que desejo receber'}
+              </Text>
+              <Ionicons
+                name={mostrarFiltros ? 'chevron-up' : 'chevron-down'}
+                size={15}
+                color={C.marca}
+              />
+            </TouchableOpacity>
+
+            {mostrarFiltros && (
+              <View style={styles.listaFiltros}>
+                <ItemFiltroNotificacao
+                  icone="water-outline"
+                  cor={C.agua}
+                  titulo="Vazamentos de água"
+                  descricao="Alerta crítico de vazão contínua (> 5,0 L/min)"
+                  ativo={prefs.vazamento_agua}
+                  desabilitado={!prefs.permitir_notificacoes}
+                  onToggle={() => alternarFiltro('vazamento_agua')}
+                />
+                <ItemFiltroNotificacao
+                  icone="flash-outline"
+                  cor={C.energia}
+                  titulo="Picos de consumo elétrico"
+                  descricao="Aviso quando a potência ativa passar de 3.500 W"
+                  ativo={prefs.pico_energia}
+                  desabilitado={!prefs.permitir_notificacoes}
+                  onToggle={() => alternarFiltro('pico_energia')}
+                />
+                <ItemFiltroNotificacao
+                  icone="speedometer-outline"
+                  cor={C.alerta}
+                  titulo="Instabilidade na tensão"
+                  descricao="Rede elétrica fora da faixa segura (100V a 140V)"
+                  ativo={prefs.tensao_rede}
+                  desabilitado={!prefs.permitir_notificacoes}
+                  onToggle={() => alternarFiltro('tensao_rede')}
+                />
+                <ItemFiltroNotificacao
+                  icone="analytics-outline"
+                  cor={C.marca}
+                  titulo="Desvios da Linha de Base"
+                  descricao="Consumo diário mais de 20% acima da média aprendida"
+                  ativo={prefs.desvio_linha_base}
+                  desabilitado={!prefs.permitir_notificacoes}
+                  onToggle={() => alternarFiltro('desvio_linha_base')}
+                />
+                <ItemFiltroNotificacao
+                  icone="cloud-offline-outline"
+                  cor="#f87171"
+                  titulo="Status da Central (Offline)"
+                  descricao="Aviso quando a central ESP8266 ficar desligada"
+                  ativo={prefs.status_central}
+                  desabilitado={!prefs.permitir_notificacoes}
+                  ultima
+                  onToggle={() => alternarFiltro('status_central')}
+                />
+              </View>
+            )}
+          </View>
 
           {/* Resumo: só afirma "nenhum alerta" quando a central está ao vivo */}
           <View
@@ -300,11 +506,204 @@ function CartaoAlerta({ alerta }: { alerta: ItemAlerta }) {
   );
 }
 
+function BotaoSwitch({
+  ativo,
+  cor,
+  rotulo,
+  desabilitado = false,
+  onPress
+}: {
+  ativo: boolean;
+  cor: string;
+  rotulo: string;
+  desabilitado?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      disabled={desabilitado}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: ativo, disabled: desabilitado }}
+      accessibilityLabel={rotulo}
+      style={[
+        styles.switchTrilho,
+        ativo ? { backgroundColor: cor, borderColor: cor } : { backgroundColor: C.fundo, borderColor: C.borda },
+        desabilitado ? { opacity: 0.45 } : null
+      ]}
+    >
+      <View
+        style={[
+          styles.switchBolha,
+          ativo
+            ? { alignSelf: 'flex-end', backgroundColor: '#041019' }
+            : { alignSelf: 'flex-start', backgroundColor: C.textoSec }
+        ]}
+      />
+    </TouchableOpacity>
+  );
+}
+
+function ItemFiltroNotificacao({
+  icone,
+  cor,
+  titulo,
+  descricao,
+  ativo,
+  desabilitado,
+  ultima = false,
+  onToggle
+}: {
+  icone: keyof typeof Ionicons.glyphMap;
+  cor: string;
+  titulo: string;
+  descricao: string;
+  ativo: boolean;
+  desabilitado?: boolean;
+  ultima?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View style={[styles.itemFiltro, !ultima && styles.itemFiltroBorda]}>
+      <View style={[styles.itemFiltroIcone, { backgroundColor: alfa(cor, 0.13) }]}>
+        <Ionicons name={icone} size={17} color={cor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.itemFiltroTitulo}>{titulo}</Text>
+        <Text style={styles.itemFiltroDesc}>{descricao}</Text>
+      </View>
+      <BotaoSwitch
+        ativo={ativo}
+        cor={cor}
+        rotulo={`Filtro de notificação: ${titulo}`}
+        desabilitado={desabilitado}
+        onPress={onToggle}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.fundo },
   scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   conteudo: { width: '100%', maxWidth: LARGURA_MAXIMA, alignSelf: 'center' },
   subtituloPagina: { color: C.textoTer, fontSize: 13, textAlign: 'center', marginTop: -10, marginBottom: 20 },
+  cardNotificacoes: {
+    backgroundColor: C.superficie,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16
+  },
+  notifHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  notifIconeBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  notifTituloRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 2
+  },
+  notifTitulo: {
+    color: C.texto,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  notifBadgeStatus: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999
+  },
+  notifBadgeTexto: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
+  notifSubtitulo: {
+    color: C.textoSec,
+    fontSize: 12,
+    lineHeight: 16
+  },
+  notifMensagemFeedback: {
+    color: C.marca,
+    fontSize: 12,
+    marginTop: 10,
+    lineHeight: 16
+  },
+  botaoExpandirFiltros: {
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: C.bordaSuave,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+  textoExpandirFiltros: {
+    color: C.marca,
+    fontSize: 12.5,
+    fontWeight: '600',
+    flex: 1
+  },
+  listaFiltros: {
+    marginTop: 12,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: C.bordaSuave
+  },
+  itemFiltro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10
+  },
+  itemFiltroBorda: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.bordaSuave
+  },
+  itemFiltroIcone: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  itemFiltroTitulo: {
+    color: C.texto,
+    fontSize: 13.5,
+    fontWeight: '600'
+  },
+  itemFiltroDesc: {
+    color: C.textoTer,
+    fontSize: 11.5,
+    marginTop: 1,
+    lineHeight: 15
+  },
+  switchTrilho: {
+    width: 46,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 3,
+    justifyContent: 'center'
+  },
+  switchBolha: {
+    width: 18,
+    height: 18,
+    borderRadius: 9
+  },
   resumo: {
     flexDirection: 'row',
     alignItems: 'center',
