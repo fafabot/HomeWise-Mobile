@@ -1,5 +1,5 @@
 import { showAlert } from '@/utils/alert';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,8 @@ import {
   TextInput,
   TouchableOpacity,
   StatusBar,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,27 +29,92 @@ export default function EditarPerfilScreen() {
   const [dispositivoId, setDispositivoId] = useState(perfil?.dispositivo_id || '');
   const [telefone, setTelefone] = useState(perfil?.telefone || '');
   const [residencia, setResidencia] = useState(perfil?.residencia || '');
-  const [cep, setCep] = useState(perfil?.cep || '');
+  const [cep, setCep] = useState(formatarCep(perfil?.cep || ''));
+  const [cidade, setCidade] = useState(perfil?.cidade || '');
+  const [estado, setEstado] = useState(perfil?.estado || '');
+  const [consultandoCep, setConsultandoCep] = useState(false);
+  const [mensagemCep, setMensagemCep] = useState('');
+  const [erroCep, setErroCep] = useState(false);
+  const [cepParaConsultar, setCepParaConsultar] = useState<{ valor: string } | null>(null);
+  const [seletorEstadoVisivel, setSeletorEstadoVisivel] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const consultaCepAtual = useRef(0);
+
+  useEffect(() => {
+    if (!cepParaConsultar) return;
+
+    const cepNumerico = cepParaConsultar.valor.replace(/\D/g, '');
+    if (cepNumerico.length !== 8) return;
+
+    const consultaId = ++consultaCepAtual.current;
+    const temporizador = setTimeout(async () => {
+      setConsultandoCep(true);
+      setErroCep(false);
+      setMensagemCep('Consultando CEP...');
+
+      try {
+        const resposta = await fetch(`https://viacep.com.br/ws/${cepNumerico}/json/`);
+        if (!resposta.ok) throw new Error(`Consulta de CEP retornou HTTP ${resposta.status}`);
+
+        const dados: {
+          logradouro?: string;
+          localidade?: string;
+          uf?: string;
+          erro?: boolean;
+        } = await resposta.json();
+        if (consultaId !== consultaCepAtual.current) return;
+        if (dados.erro) {
+          setErroCep(true);
+          setMensagemCep('CEP não encontrado. Verifique os números.');
+          return;
+        }
+
+        if (dados.logradouro?.trim()) setResidencia(dados.logradouro.trim());
+        if (dados.localidade?.trim()) setCidade(dados.localidade.trim());
+        if (dados.uf?.trim()) setEstado(dados.uf.trim());
+        setMensagemCep(
+          dados.logradouro?.trim()
+            ? 'Rua, cidade e estado preenchidos pelo CEP.'
+            : 'CEP encontrado; preencha a rua manualmente.'
+        );
+      } catch (error) {
+        if (consultaId !== consultaCepAtual.current) return;
+        console.warn('[ViaCEP] Erro ao consultar CEP:', error);
+        setErroCep(true);
+        setMensagemCep('Não foi possível consultar o CEP. Verifique a conexão e tente novamente.');
+      } finally {
+        if (consultaId === consultaCepAtual.current) setConsultandoCep(false);
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(temporizador);
+      if (consultaCepAtual.current === consultaId) consultaCepAtual.current += 1;
+    };
+  }, [cepParaConsultar]);
 
   // O perfil chega de forma assíncrona (onSnapshot no AuthContext). Quando algum valor salvo muda,
   // os campos são sincronizados durante a renderização, sem setState dentro de useEffect.
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-  const { nome: nomeSalvo, dispositivo_id: centralSalva, telefone: telefoneSalvo, residencia: residenciaSalva, cep: cepSalvo } = perfil ?? {};
-  const [perfilSincronizado, setPerfilSincronizado] = useState({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo });
+  const { nome: nomeSalvo, dispositivo_id: centralSalva, telefone: telefoneSalvo, residencia: residenciaSalva, cep: cepSalvo, cidade: cidadeSalva, estado: estadoSalvo } = perfil ?? {};
+  const [perfilSincronizado, setPerfilSincronizado] = useState({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo, cidadeSalva, estadoSalvo });
   if (
     perfilSincronizado.nomeSalvo !== nomeSalvo ||
     perfilSincronizado.centralSalva !== centralSalva ||
     perfilSincronizado.telefoneSalvo !== telefoneSalvo ||
     perfilSincronizado.residenciaSalva !== residenciaSalva ||
-    perfilSincronizado.cepSalvo !== cepSalvo
+    perfilSincronizado.cepSalvo !== cepSalvo ||
+    perfilSincronizado.cidadeSalva !== cidadeSalva ||
+    perfilSincronizado.estadoSalvo !== estadoSalvo
   ) {
-    setPerfilSincronizado({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo });
+    setPerfilSincronizado({ nomeSalvo, centralSalva, telefoneSalvo, residenciaSalva, cepSalvo, cidadeSalva, estadoSalvo });
     if (nomeSalvo) setNome(nomeSalvo);
     if (centralSalva !== undefined) setDispositivoId(centralSalva);
     if (telefoneSalvo) setTelefone(telefoneSalvo);
     if (residenciaSalva) setResidencia(residenciaSalva);
-    if (cepSalvo) setCep(cepSalvo);
+    if (cepSalvo) setCep(formatarCep(cepSalvo));
+    if (cidadeSalva !== undefined) setCidade(cidadeSalva);
+    if (estadoSalvo !== undefined) setEstado(estadoSalvo);
   }
 
   async function handleSalvar() {
@@ -62,7 +128,9 @@ export default function EditarPerfilScreen() {
       dispositivo_id: dispositivoId.trim(),
       telefone: telefone.trim(),
       residencia: residencia.trim(),
-      cep: cep.trim()
+      cep: cep.trim(),
+      cidade: cidade.trim(),
+      estado: estado.trim()
     });
     setSalvando(false);
 
@@ -178,32 +246,88 @@ export default function EditarPerfilScreen() {
               Este código vincula os sensores de água e energia da sua casa à sua conta. Deixe em branco se quiser desvincular a central atual.
             </Text>
 
-            <Campo rotulo="Endereço da Residência" icone="home-outline">
+            <Campo
+              rotulo="CEP"
+              icone="location-outline"
+              acaoDireita={consultandoCep ? <ActivityIndicator size="small" color={C.marca} /> : undefined}
+            >
+              {(foco) => (
+                <TextInput
+                  {...foco}
+                  style={styles.input}
+                  value={cep}
+                  onChangeText={(valor) => {
+                    const cepFormatado = formatarCep(valor);
+                    setCep(cepFormatado);
+                    const cepNumerico = cepFormatado.replace(/\D/g, '');
+                    setCepParaConsultar(
+                      cepNumerico.length === 8
+                        ? { valor: cepFormatado }
+                        : null
+                    );
+                    setConsultandoCep(false);
+                    setMensagemCep('');
+                    setErroCep(false);
+                  }}
+                  keyboardType="numeric"
+                  maxLength={9}
+                  placeholder="00000-000"
+                  placeholderTextColor={C.textoTer}
+                  accessibilityLabel="CEP"
+                />
+              )}
+            </Campo>
+            <Text
+              style={[styles.helperText, erroCep && styles.cepErro]}
+              accessibilityLiveRegion="polite"
+            >
+              {mensagemCep || 'Sem o CEP? Selecione o estado abaixo e informe a cidade e a rua.'}
+            </Text>
+
+            <Campo rotulo="Rua e número" icone="home-outline">
               {(foco) => (
                 <TextInput
                   {...foco}
                   style={styles.input}
                   value={residencia}
                   onChangeText={setResidencia}
-                  placeholder="Rua, número, bairro e cidade"
+                  placeholder="Rua e número"
                   placeholderTextColor={C.textoTer}
-                  accessibilityLabel="Endereço da Residência"
+                  accessibilityLabel="Rua e número da residência"
                 />
               )}
             </Campo>
 
-            <Campo rotulo="CEP" icone="location-outline">
+            <Campo rotulo="Cidade" icone="business-outline">
               {(foco) => (
                 <TextInput
                   {...foco}
                   style={styles.input}
-                  value={cep}
-                  onChangeText={setCep}
-                  keyboardType="numeric"
-                  placeholder="00000-000"
+                  value={cidade}
+                  onChangeText={setCidade}
+                  placeholder="Cidade"
                   placeholderTextColor={C.textoTer}
-                  accessibilityLabel="CEP"
+                  accessibilityLabel="Cidade"
                 />
+              )}
+            </Campo>
+
+            <Campo rotulo="UF" icone="map-outline">
+              {() => (
+                <TouchableOpacity
+                  style={styles.seletorEstado}
+                  activeOpacity={0.75}
+                  onPress={() => setSeletorEstadoVisivel(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={estado ? `UF: ${nomeEstado(estado)}` : 'Selecionar UF'}
+                  accessibilityHint="Abre a lista de UFs do Brasil"
+                  accessibilityState={{ expanded: seletorEstadoVisivel }}
+                >
+                  <Text style={[styles.textoSeletorEstado, !estado && styles.placeholderSeletorEstado]}>
+                    {estado ? nomeEstado(estado) : 'Selecione uma UF'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={C.textoSec} />
+                </TouchableOpacity>
               )}
             </Campo>
           </View>
@@ -229,8 +353,88 @@ export default function EditarPerfilScreen() {
 
         </View>
       </ScrollView>
+      <Modal
+        visible={seletorEstadoVisivel}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSeletorEstadoVisivel(false)}
+      >
+        <View style={styles.fundoModalEstado}>
+          <View style={styles.modalEstado} accessibilityViewIsModal>
+            <View style={styles.cabecalhoModalEstado}>
+              <Text accessibilityRole="header" style={styles.tituloModalEstado}>Selecione a UF</Text>
+              <TouchableOpacity
+                onPress={() => setSeletorEstadoVisivel(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar lista de estados"
+                style={styles.fecharModalEstado}
+              >
+                <Ionicons name="close" size={22} color={C.textoSec} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {ESTADOS_BRASIL.map((opcao) => (
+                <TouchableOpacity
+                  key={opcao.uf}
+                  style={styles.opcaoEstado}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setEstado(opcao.uf);
+                    setSeletorEstadoVisivel(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: estado === opcao.uf }}
+                >
+                  <Text style={styles.textoOpcaoEstado}>{opcao.nome}</Text>
+                  <Text style={styles.siglaEstado}>{opcao.uf}</Text>
+                  {estado === opcao.uf && <Ionicons name="checkmark" size={18} color={C.marca} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
+}
+
+const ESTADOS_BRASIL = [
+  { nome: 'Acre', uf: 'AC' },
+  { nome: 'Alagoas', uf: 'AL' },
+  { nome: 'Amapá', uf: 'AP' },
+  { nome: 'Amazonas', uf: 'AM' },
+  { nome: 'Bahia', uf: 'BA' },
+  { nome: 'Ceará', uf: 'CE' },
+  { nome: 'Distrito Federal', uf: 'DF' },
+  { nome: 'Espírito Santo', uf: 'ES' },
+  { nome: 'Goiás', uf: 'GO' },
+  { nome: 'Maranhão', uf: 'MA' },
+  { nome: 'Mato Grosso', uf: 'MT' },
+  { nome: 'Mato Grosso do Sul', uf: 'MS' },
+  { nome: 'Minas Gerais', uf: 'MG' },
+  { nome: 'Pará', uf: 'PA' },
+  { nome: 'Paraíba', uf: 'PB' },
+  { nome: 'Paraná', uf: 'PR' },
+  { nome: 'Pernambuco', uf: 'PE' },
+  { nome: 'Piauí', uf: 'PI' },
+  { nome: 'Rio de Janeiro', uf: 'RJ' },
+  { nome: 'Rio Grande do Norte', uf: 'RN' },
+  { nome: 'Rio Grande do Sul', uf: 'RS' },
+  { nome: 'Rondônia', uf: 'RO' },
+  { nome: 'Roraima', uf: 'RR' },
+  { nome: 'Santa Catarina', uf: 'SC' },
+  { nome: 'São Paulo', uf: 'SP' },
+  { nome: 'Sergipe', uf: 'SE' },
+  { nome: 'Tocantins', uf: 'TO' }
+] as const;
+
+function nomeEstado(uf: string) {
+  return ESTADOS_BRASIL.find((opcao) => opcao.uf === uf.toUpperCase())?.nome ?? uf;
+}
+
+function formatarCep(valor: string) {
+  const numeros = valor.replace(/\D/g, '').slice(0, 8);
+  return numeros.length > 5 ? `${numeros.slice(0, 5)}-${numeros.slice(5)}` : numeros;
 }
 
 type PropsFoco = { onFocus: () => void; onBlur: () => void };
@@ -287,6 +491,18 @@ const styles = StyleSheet.create({
   inputBloqueado: { backgroundColor: C.superficieAlta, borderColor: C.bordaSuave },
   input: { flex: 1, height: 50, color: C.texto, fontSize: 15 },
   helperText: { fontSize: 11.5, lineHeight: 16, color: C.textoTer, marginTop: -8 },
+  cepErro: { color: C.perigo },
+  seletorEstado: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  textoSeletorEstado: { color: C.texto, fontSize: 15 },
+  placeholderSeletorEstado: { color: C.textoTer },
+  fundoModalEstado: { flex: 1, backgroundColor: 'rgba(2, 8, 12, 0.8)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalEstado: { width: '100%', maxWidth: 440, maxHeight: '80%', backgroundColor: C.superficie, borderRadius: 22, borderWidth: 1, borderColor: C.bordaForte, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8 },
+  cabecalhoModalEstado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.borda },
+  tituloModalEstado: { color: C.texto, fontSize: 17, fontWeight: '700' },
+  fecharModalEstado: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  opcaoEstado: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: C.bordaSuave },
+  textoOpcaoEstado: { flex: 1, color: C.texto, fontSize: 15 },
+  siglaEstado: { color: C.textoSec, fontSize: 13, fontWeight: '600', minWidth: 26, textAlign: 'right' },
   cabecalhoCentral: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: -9 },
   botaoCamera: { padding: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   botaoSalvar: {

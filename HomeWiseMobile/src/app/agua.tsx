@@ -84,7 +84,8 @@ export default function AguaScreen() {
     historicoDiario,
     aguaHojeNum,
     energiaHojeNum,
-    leiturasParaCalculo
+    leiturasParaCalculo,
+    agoraData
   );
 
   // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
@@ -99,7 +100,14 @@ export default function AguaScreen() {
   const consumoPeriodoTexto = totaisDisponiveis ? consumoPeriodoLitros : '--';
 
   const vazaoLMin = statusDesconhecido ? '--' : online && leitura ? Number(leitura.vazao_l_min).toFixed(1) : '0.0';
-  const previsaoMesLitros = totaisDisponiveis ? (statusBaseline.mediaAguaLitrosDia * 30).toFixed(0) : '--';
+  const diasComputadosMes = statusBaseline.diasComputadosMesAtual ?? 0;
+  const diasRestantesMes = statusBaseline.diasRestantesMesAtual ?? 30;
+  const acumuladoMesLitros = totaisDisponiveis
+    ? Number(statusBaseline.aguaAcumuladaMesLitros ?? 0).toFixed(1)
+    : '--';
+  const previsaoMesLitros = totaisDisponiveis
+    ? Number(statusBaseline.previsaoAguaMesInteiroLitros ?? (statusBaseline.mediaAguaLitrosDia * 30)).toFixed(1)
+    : '--';
 
   // Calcula medias reais do historico
   const mediaDiariaLitros = totaisDisponiveis ? statusBaseline.mediaAguaLitrosDia.toFixed(1) : '--';
@@ -211,14 +219,24 @@ export default function AguaScreen() {
                 <Ionicons name="chevron-forward" size={14} color={C.marca} />
               </TouchableOpacity>
             </View>
+            <LinhaResumo
+              icone="stats-chart-outline"
+              rotulo={`Acumulado no mês (${diasComputadosMes}d)`}
+              valor={`${acumuladoMesLitros} L`}
+            />
             <LinhaResumo icone="analytics-outline" rotulo="Média diária aprendida" valor={`${mediaDiariaLitros} L/dia`} />
             <LinhaResumo
               icone={statusBaseline.fase === 'calibrado' ? 'sparkles-outline' : 'hourglass-outline'}
               rotulo="Linha de Base"
-              valor={!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
+              valor={!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado (30/30 d)' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
               cor={statusBaseline.fase === 'calibrado' ? C.ok : ACENTO}
             />
-            <LinhaResumo icone="calendar-outline" rotulo="Previsão mensal" valor={`${previsaoMesLitros} L`} ultima />
+            <LinhaResumo
+              icone="calendar-outline"
+              rotulo={`Previsão mês inteiro (${diasComputadosMes}d + ${diasRestantesMes}d)`}
+              valor={`${previsaoMesLitros} L`}
+              ultima
+            />
           </View>
 
         </View>
