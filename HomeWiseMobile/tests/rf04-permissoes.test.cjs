@@ -53,3 +53,4 @@ test('RF04 - fornece parâmetros técnicos de calibração do hardware da Centra
   assert.ok(parametros.some((p) => p.valor.includes('402,5 pulsos/L')));
   assert.ok(parametros.some((p) => p.valor.includes('UART 9600 bps')));
 });
+

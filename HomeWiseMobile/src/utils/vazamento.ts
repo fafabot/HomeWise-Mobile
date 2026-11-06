@@ -55,3 +55,4 @@ export function detectarFluxoContinuoAgua(
   const ultimas = sequencia.slice(-minLeiturasConsecutivas);
   return ultimas.every((item) => Number(item.vazao_l_min || 0) >= LIMIAR_VAZAO_CONTINUA_L_MIN);
 }
+
