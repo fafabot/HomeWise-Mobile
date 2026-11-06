@@ -1,26 +1,46 @@
-import { type ComponentRef, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { cadastrarUsuario, loginUsuario } from '@/services/authService';
+import { cadastrarUsuario, loginUsuario, recuperarPerfilIncompleto } from '@/services/authService';
+import { authErrorMessage } from '@/services/authErrors';
+import { mensagemPerfil } from '@/utils/profile-feedback';
 import HomeWiseLogo from '@/components/HomeWiseLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePanelMotion } from '@/hooks/use-panel-motion';
 
 export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
   const registering = mode === 'cadastro';
-  const { selectEntry } = useAuth();
+  const { selectEntry, user, perfil, estadoPerfil, operacaoPerfil, iniciarOperacaoPerfil,
+    finalizarOperacaoPerfil, tentarNovamentePerfil, sairDaConta, saindo, erroSaida } = useAuth();
+  const recuperando = registering && !!user;
   const panel = usePanelMotion();
   const [focused, setFocused] = useState<string | null>(null);
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [dispositivo, setDispositivo] = useState('');
+  const [nome, setNome] = useState(user?.displayName || perfil?.nome || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [dispositivo, setDispositivo] = useState(perfil?.dispositivo_id || '');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [situacao, setSituacao] = useState<'inicial' | 'completo' | 'parcial' | 'falha'>('inicial');
+  const [cadastroPendente, setCadastroPendente] = useState<{ uid: string } | null>(null);
+  // Um cadastro novo em andamento (ou já concluído) recebe a sessão antes do resultado;
+  // nesse intervalo a tela continua sendo de cadastro, não de conclusão de perfil.
+  const [envioCadastro, setEnvioCadastro] = useState(false);
+  const [cadastroNovoConcluido, setCadastroNovoConcluido] = useState(false);
+  const modoConclusao = registering && (!!cadastroPendente || (recuperando && !envioCadastro && !cadastroNovoConcluido));
+  // Após recarga/login o rascunho da central (só em memória) não existe mais.
+  const centralPerdida = modoConclusao && !cadastroPendente && !dispositivo.trim() && !perfil?.dispositivo_id?.trim();
+  const montada = useRef(true);
+  const usuarioAtual = useRef(user?.uid);
+  useEffect(() => { usuarioAtual.current = user?.uid; }, [user?.uid]);
+  useEffect(() => {
+    montada.current = true;
+    return () => { montada.current = false; };
+  }, []);
   const submitting = useRef(false);
   const emailInput = useRef<ComponentRef<typeof TextInput>>(null);
   const dispositivoInput = useRef<ComponentRef<typeof TextInput>>(null);
@@ -28,49 +48,80 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
   const confirmationInput = useRef<ComponentRef<typeof TextInput>>(null);
 
   async function submit() {
-    if (submitting.current) return;
+    if (submitting.current || (registering && situacao === 'completo')) return;
     submitting.current = true;
     setBusy(true);
-    await panel.press();
-    setError('');
-    const normalizedEmail = email.trim().toLowerCase();
-    
-    if (registering && !nome.trim()) {
-      setError('Informe seu nome completo.');
-      submitting.current = false;
-      setBusy(false);
-      return;
-    }
-
-    const validationError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? 'Informe um e-mail válido.'
-      : !password ? 'Informe sua senha.'
-      : registering && password.length < 6 ? 'A senha deve ter pelo menos 6 caracteres.'
-      : registering && password !== confirmation ? 'As senhas não coincidem.' : '';
-    
-    if (validationError) {
-      setError(validationError);
-      submitting.current = false;
-      setBusy(false);
-      return;
-    }
-
+    const uidInicial = usuarioAtual.current;
+    let token: number | null = null;
     try {
-      if (registering) {
-        const res = await cadastrarUsuario(normalizedEmail, password, nome, dispositivo.trim());
-        if (!res.sucesso) {
-          setError(res.erro || 'Erro ao criar conta.');
+      await panel.press();
+      if (!montada.current) return;
+      if (usuarioAtual.current !== uidInicial) {
+        setError('A sessão mudou. Confira a conta antes de tentar novamente.');
+        return;
+      }
+      setError('');
+      const normalizedEmail = email.trim().toLowerCase();
+      if (registering && (cadastroPendente || recuperando)) {
+        const uidEsperado = cadastroPendente?.uid || user?.uid;
+        if (usuarioAtual.current !== uidEsperado) {
+          setError('Entre novamente na mesma conta para concluir o perfil. Não refaça o cadastro.');
+          setSituacao('parcial');
+          return;
         }
+        token = iniciarOperacaoPerfil(user?.email || normalizedEmail);
+        if (token === null) return;
+        const resultado = await recuperarPerfilIncompleto({ nome: nome.trim(), dispositivo_id: dispositivo.trim() });
+        finalizarOperacaoPerfil(token, resultado);
+        token = null;
+        if (!montada.current || usuarioAtual.current !== uidEsperado) return;
+        setSituacao(resultado.sucesso && resultado.estado === 'completo' ? 'completo' : 'parcial');
+        setError(mensagemPerfil(resultado, 'recuperacao'));
+        return;
+      }
+
+      if (registering && !nome.trim()) {
+        setError('Informe seu nome completo.');
+        return;
+      }
+
+      const validationError = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? 'Informe um e-mail válido.'
+        : !password ? 'Informe sua senha.'
+        : registering && password.length < 6 ? 'A senha deve ter pelo menos 6 caracteres.'
+        : registering && password !== confirmation ? 'As senhas não coincidem.' : '';
+
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+
+      if (registering) {
+        token = iniciarOperacaoPerfil(normalizedEmail);
+        if (token === null) return;
+        setEnvioCadastro(true);
+        const res = await cadastrarUsuario(normalizedEmail, password, nome, dispositivo.trim());
+        finalizarOperacaoPerfil(token, res);
+        token = null;
+        if (!montada.current || (usuarioAtual.current && usuarioAtual.current !== res.usuario?.uid)) return;
+        if (res.sucesso && res.estado === 'completo') setCadastroNovoConcluido(true);
+        setSituacao(res.sucesso && res.estado === 'completo' ? 'completo' : res.estado === 'parcial' ? 'parcial' : 'falha');
+        if (res.estado === 'parcial' && res.usuario?.uid) setCadastroPendente({ uid: res.usuario.uid });
+        setError(mensagemPerfil(res, 'cadastro'));
       } else {
         const res = await loginUsuario(normalizedEmail, password);
+        if (!montada.current) return;
         if (!res.sucesso) {
-          setError(res.erro || 'Erro ao entrar na conta.');
+          setError(authErrorMessage({ code: res.codigo }));
         }
       }
-    } catch (err: any) {
-      setError(err?.message || 'Ocorreu um erro inesperado.');
+    } catch {
+      if (montada.current) setError(cadastroPendente
+        ? 'Não foi possível concluir o perfil. Tente novamente na mesma conta.'
+        : 'Não foi possível confirmar a operação. Seus dados foram mantidos. Confira sua conexão antes de tentar novamente.');
     } finally {
+      if (token !== null) finalizarOperacaoPerfil(token);
       submitting.current = false;
-      setBusy(false);
+      if (montada.current) { setBusy(false); setEnvioCadastro(false); }
     }
   }
 
@@ -82,16 +133,19 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
           <View style={styles.card}>
             <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} imageStyle={styles.heroImage} resizeMode="cover">
               <View style={styles.shade} />
-              <TouchableOpacity disabled={busy} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => panel.close(() => selectEntry(null))}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>
+              {/* Na conclusão de perfil a sessão já existe: voltar não tem efeito; a saída é "Sair da conta". */}
+              {!modoConclusao && <TouchableOpacity disabled={busy || recuperando} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => panel.close(() => selectEntry(null))}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>}
               <HomeWiseLogo compact />
               <Text style={styles.brand}>HomeWise</Text>
             </ImageBackground>
             <Animated.View style={[styles.form, panel.style]}>
             <View style={styles.formContent}>
             <View style={styles.handle} />
-            <Text style={styles.eyebrow}>{registering ? 'COMECE UMA NOVA HISTÓRIA' : 'SUA CASA ESTÁ ESPERANDO'}</Text>
-            <Text style={styles.title}>{registering ? 'Crie sua conta' : 'Bem-vindo de volta'}</Text>
-            <Text style={styles.subtitle}>{registering ? 'Cadastre-se para acompanhar sua residência.' : 'Entre com seu e-mail e senha para continuar.'}</Text>
+            <Text style={styles.eyebrow}>{modoConclusao ? 'CONCLUSÃO DO PERFIL' : registering ? 'COMECE UMA NOVA HISTÓRIA' : 'SUA CASA ESTÁ ESPERANDO'}</Text>
+            <Text style={styles.title}>{modoConclusao ? 'Conclua seu perfil' : registering ? 'Crie sua conta' : 'Bem-vindo de volta'}</Text>
+            <Text style={styles.subtitle}>{modoConclusao
+              ? 'Sua conta já existe. Confirme seu nome para concluir o perfil nesta mesma conta, sem criar outra conta nem informar a senha.'
+              : registering ? 'Cadastre-se para acompanhar sua residência.' : 'Entre com seu e-mail e senha para continuar.'}</Text>
 
             {/* Campo Nome (Apenas Cadastro) */}
             {registering && (
@@ -108,7 +162,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                     onFocus={() => setFocused('nome')}
                     onBlur={() => setFocused(null)}
                     autoCapitalize="words"
-                    editable={!busy}
+                    editable={!busy && !cadastroPendente && situacao !== 'completo'}
                     returnKeyType="next"
                     onSubmitEditing={() => emailInput.current?.focus()}
                   />
@@ -135,7 +189,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                 autoCorrect={false}
                 autoComplete="email"
                 textContentType="emailAddress"
-                editable={!busy}
+                editable={!recuperando && !busy && !cadastroPendente && situacao !== 'completo'}
                 returnKeyType="next"
                 onSubmitEditing={() => registering ? dispositivoInput.current?.focus() : passwordInput.current?.focus()}
               />
@@ -157,15 +211,22 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                     onFocus={() => setFocused('dispositivo')}
                     onBlur={() => setFocused(null)}
                     autoCapitalize="none"
-                    editable={!busy}
-                    returnKeyType="next"
-                    onSubmitEditing={() => passwordInput.current?.focus()}
+                    editable={!busy && !cadastroPendente && situacao !== 'completo'}
+                    returnKeyType={modoConclusao ? 'go' : 'next'}
+                    onSubmitEditing={() => modoConclusao ? void submit() : passwordInput.current?.focus()}
                   />
                 </View>
+                {centralPerdida && (
+                  <Text style={styles.hint}>
+                    Se você informou o código da central no cadastro, ele não foi mantido. Informe-o agora ou deixe em branco e vincule a central depois, em Editar perfil.
+                  </Text>
+                )}
               </>
             )}
 
-            {/* Campo Senha */}
+            {/* Senhas: não são usadas para concluir o perfil de uma conta já criada */}
+            {!modoConclusao && (
+            <>
             <Text style={styles.label}>Senha</Text>
             <View style={[styles.fieldRow, focused === 'password' && styles.focused]}>
               <Ionicons name="lock-closed-outline" size={20} color="#7f97a6" style={styles.fieldIcon} />
@@ -184,7 +245,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                 autoCorrect={false}
                 autoComplete={registering ? 'new-password' : 'current-password'}
                 textContentType={registering ? 'newPassword' : 'password'}
-                editable={!busy}
+                editable={!busy && !cadastroPendente && situacao !== 'completo'}
                 returnKeyType={registering ? 'next' : 'go'}
                 onSubmitEditing={() => registering ? confirmationInput.current?.focus() : void submit()}
               />
@@ -216,36 +277,61 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
                     autoCorrect={false}
                     autoComplete="new-password"
                     textContentType="newPassword"
-                    editable={!busy}
+                    editable={!busy && !cadastroPendente && situacao !== 'completo'}
                     returnKeyType="go"
                     onSubmitEditing={() => void submit()}
                   />
                 </View>
               </>
             )}
+            </>
+            )}
 
-            {!!error && <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">{error}</Text>}
+            {recuperando && estadoPerfil === 'verificando' && <Text style={styles.subtitle}>Aguardando confirmação do perfil pelo servidor.</Text>}
+            {recuperando && estadoPerfil === 'erro' && <Text style={styles.error}>Não foi possível consultar o perfil. Isso não significa que ele não existe.</Text>}
+            {recuperando && <TouchableOpacity style={styles.link} disabled={busy || operacaoPerfil || saindo} onPress={tentarNovamentePerfil}><Text style={styles.link}>Tentar consultar perfil</Text></TouchableOpacity>}
+            {!!error && <Text style={[styles.error, situacao === 'completo' && { color: '#22b7d4' }]} accessibilityRole={situacao === 'completo' ? undefined : 'alert'} accessibilityLiveRegion="polite">{error}</Text>}
 
             <Animated.View style={panel.buttonStyle}>
               <TouchableOpacity
                 style={[styles.button, busy && styles.disabled]}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: busy, busy }}
-                disabled={busy}
+                accessibilityState={{ disabled: busy || (registering && situacao === 'completo'), busy }}
+                disabled={busy || (registering && situacao === 'completo')}
                 onPressIn={panel.buttonDown}
                 onPressOut={panel.buttonUp}
                 onPress={() => void submit()}
               >
                 {busy ? <ActivityIndicator color="#fff" /> : (
                   <>
-                    <Text style={styles.buttonText}>{registering ? 'Criar minha conta' : 'Entrar'}</Text>
+                    <Text style={styles.buttonText}>{registering ? situacao === 'completo' ? 'Perfil concluído' : (cadastroPendente || recuperando) ? 'Concluir meu perfil' : 'Criar minha conta' : 'Entrar'}</Text>
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
                   </>
                 )}
               </TouchableOpacity>
             </Animated.View>
 
-            {!busy && (
+            {/* Saída pelo fluxo existente (sairDaConta): leva às boas-vindas; dá para entrar depois e concluir. */}
+            {recuperando && (
+              <>
+                <TouchableOpacity
+                  style={[styles.sair, saindo && styles.disabled]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sair da conta"
+                  accessibilityHint="Encerra a sessão neste aparelho. Você pode entrar depois para concluir o perfil."
+                  accessibilityState={{ disabled: saindo, busy: saindo }}
+                  disabled={saindo}
+                  onPress={() => void sairDaConta()}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#22b7d4" />
+                  <Text style={styles.sairTexto}>{saindo ? 'Saindo…' : 'Sair da conta'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.sairNota}>Você pode entrar novamente depois e concluir o perfil nesta mesma conta.</Text>
+              </>
+            )}
+            {erroSaida && <Text style={styles.error} accessibilityRole="alert">Não foi possível sair da conta. Tente novamente.</Text>}
+
+            {!busy && !recuperando && (
               <>
                 <Text style={styles.footer}>{registering ? 'Já tem uma conta?' : 'Ainda não tem uma conta?'}</Text>
                 <TouchableOpacity
@@ -294,12 +380,16 @@ const styles = StyleSheet.create({
   fieldInput: { flex: 1, minWidth: 0, color: '#f1f7fa', paddingHorizontal: 12, paddingVertical: 15, fontSize: 15, minHeight: 54 },
   focused: { borderColor: '#22b7d4', backgroundColor: '#050e14' },
   eye: { width: 46, minHeight: 50, justifyContent: 'center', alignItems: 'center' },
+  hint: { color: '#9db1bd', fontSize: 12, lineHeight: 18, marginTop: 8 },
   error: { color: '#fca5a5', backgroundColor: '#261414', borderWidth: 1, borderColor: '#7f1d1d', padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 20, marginTop: 16 },
   button: { backgroundColor: '#0a7d96', borderRadius: 16, minHeight: 54, flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
   disabled: { opacity: 0.6 },
   forgot: { color: '#22b7d4', fontSize: 12.5, textAlign: 'right', paddingVertical: 12, fontWeight: '600' },
   footer: { color: '#7f97a6', fontSize: 12.5, textAlign: 'center', marginTop: 22 },
+  sair: { borderWidth: 1, borderColor: '#21465c', borderRadius: 16, minHeight: 50, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  sairTexto: { color: '#d6e3ea', fontSize: 14.5, fontWeight: '700' },
+  sairNota: { color: '#7f97a6', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 8 },
   link: { color: '#22b7d4', fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 10, lineHeight: 22 },
   security: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 16 },
   securityText: { color: '#7f97a6', fontSize: 11 },

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
@@ -45,12 +46,19 @@ function validarCPF(cpf: string): boolean {
   return resto === parseInt(limpo.charAt(10), 10);
 }
 
+/** Texto da confirmação, a partir do plano e ciclo efetivamente gravados. */
+export function textoConfirmacaoContratacao(nomePlano: string, ciclo: CicloAssinatura) {
+  return `Simulação concluída: plano HomeWise ${nomePlano} ${ciclo === 'anual' ? 'anual' : 'mensal'} ativado.`;
+}
+
 export default function GerenciarAssinaturaScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ checkout?: string }>();
   const { user, perfil, atualizarPlanoAssinatura, cancelarAssinatura } = useAuth();
+  const rolagem = useRef<ComponentRef<typeof ScrollView>>(null);
   const ativo = temPlanoAtivo(perfil?.plano, perfil?.status_assinatura);
   const planoSalvo = ativo ? obterPlanoPorId(perfil?.plano) : null;
+  const cicloAtual: CicloAssinatura = perfil?.ciclo_assinatura === 'anual' ? 'anual' : 'mensal';
 
   const [ciclo, setCiclo] = useState<CicloAssinatura>(
     perfil?.ciclo_assinatura === 'anual' ? 'anual' : 'mensal'
@@ -86,6 +94,7 @@ export default function GerenciarAssinaturaScreen() {
   const [cvvCartao, setCvvCartao] = useState('');
   const [erroPagamento, setErroPagamento] = useState('');
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+  const pagamentoEmAndamento = useRef(false);
 
   // Confirmação temporária do pagamento simulado: fica só em memória, some após 5 s
   // e não reaparece ao reabrir ou recarregar a tela.
@@ -106,6 +115,9 @@ export default function GerenciarAssinaturaScreen() {
     if (!montada.current) return;
     if (temporizadorConfirmacao.current) clearTimeout(temporizadorConfirmacao.current);
     setConfirmacao(texto);
+    // Web: role="alert" anuncia. iOS não anuncia regiões vivas; Android anuncia, e o anúncio explícito
+    // garante a leitura mesmo com o foco ainda saindo do checkout.
+    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(`${texto} Nenhuma cobrança real foi feita.`);
     temporizadorConfirmacao.current = setTimeout(() => {
       temporizadorConfirmacao.current = null;
       setConfirmacao('');
@@ -218,7 +230,7 @@ export default function GerenciarAssinaturaScreen() {
   }
 
   async function confirmarPagamentoSimulado() {
-    if (!planoEmCheckout || processandoPagamento) return;
+    if (!planoEmCheckout || pagamentoEmAndamento.current) return;
     setErroPagamento('');
 
     if (nomeAssinante.trim().length < 3) {
@@ -268,12 +280,18 @@ export default function GerenciarAssinaturaScreen() {
       complemento.trim() ? ` - ${complemento.trim()}` : ''
     }, ${bairro.trim()} - ${cidade.trim()}/${estado.trim().toUpperCase()} (CEP: ${cep.trim()})`;
 
+    // Plano e ciclo desta tentativa: a confirmação usa exatamente o que foi enviado e gravado.
+    const planoEscolhido = planoEmCheckout;
+    const cicloEscolhido = ciclo;
+    pagamentoEmAndamento.current = true;
     setProcessandoPagamento(true);
-    setSalvandoId(planoEmCheckout.id);
+    setSalvandoId(planoEscolhido.id);
+    // O try cobre só a gravação: um erro na interface depois do sucesso nunca vira "não concluída".
+    let ok = false;
     try {
       // Simula tempo de aprovação da transação
       await new Promise(resolve => setTimeout(resolve, 900));
-      const ok = await atualizarPlanoAssinatura(planoEmCheckout.id, ciclo, {
+      ok = (await atualizarPlanoAssinatura(planoEscolhido.id, cicloEscolhido, {
         nome: nomeAssinante.trim(),
         cpf: cpf.trim(),
         telefone: telefone.trim(),
@@ -288,23 +306,30 @@ export default function GerenciarAssinaturaScreen() {
           estado: estado.trim().toUpperCase(),
         },
         metodo_pagamento: metodo,
-      });
-      if (ok) {
-        const metodoLabel = metodo === 'pix' ? 'PIX' : 'Cartão de Crédito';
-        setMensagem('');
-        setMensagemErro(false);
-        setConfirmandoCancelamento(false);
-        mostrarConfirmacao(
-          `Plano HomeWise ${planoEmCheckout.nome} (${ciclo}) ativado. Pagamento via ${metodoLabel} simulado.`
-        );
-        setPlanoEmCheckout(null);
-      } else {
-        setErroPagamento('Não foi possível ativar o plano. Verifique sua conexão.');
-      }
+      })) === true;
+    } catch {
+      ok = false;
     } finally {
-      setProcessandoPagamento(false);
-      setSalvandoId(null);
+      pagamentoEmAndamento.current = false;
+      if (montada.current) {
+        setProcessandoPagamento(false);
+        setSalvandoId(null);
+      }
     }
+    if (!montada.current) return;
+    if (!ok) {
+      // Checkout continua aberto, com a falha; nada indica contratação concluída.
+      setErroPagamento('Não foi possível confirmar a ativação. Confira o estado do plano antes de tentar novamente.');
+      return;
+    }
+    setMensagem('');
+    setMensagemErro(false);
+    setConfirmandoCancelamento(false);
+    setPlanoEmCheckout(null);
+    mostrarConfirmacao(textoConfirmacaoContratacao(planoEscolhido.nome, cicloEscolhido));
+    rolagem.current?.scrollTo({ y: 0, animated: true });
+    // Por último: recarregar não deve reabrir o checkout de um plano já contratado.
+    if (params.checkout) router.setParams?.({ checkout: undefined });
   }
 
   async function handleCancelar() {
@@ -335,7 +360,7 @@ export default function GerenciarAssinaturaScreen() {
   const codigoPixDemo = `00020126580014BR.GOV.BCB.PIX0136homewise-tcc-${planoEmCheckout?.id || 'plus'}-${ciclo}5204000053039865802BR5916HOMEWISEMONITORA6009SAOPAULO62070503***6304A1B2`;
 
   return (
-    <SubscriptionScreen title="Gerenciar assinatura" onBack={() => (router.canGoBack() ? router.back() : router.replace('/perfil'))}>
+    <SubscriptionScreen scrollRef={rolagem} title="Gerenciar assinatura" onBack={() => (router.canGoBack() ? router.back() : router.replace('/perfil'))}>
       <Text style={s.eyebrow}>PLANOS HOMEWISE</Text>
       <Text style={s.title}>O plano certo para sua casa.</Text>
       <Text style={s.subtitle}>Planos flexíveis e sem fidelidade. Economize mais, pague menos.</Text>
@@ -348,7 +373,7 @@ export default function GerenciarAssinaturaScreen() {
           <Text style={styles.currentLabel}>SUA ASSINATURA ATUAL</Text>
           <Text style={styles.currentName}>
             {planoSalvo
-              ? `HomeWise ${planoSalvo.nome} (${perfil?.ciclo_assinatura === 'anual' ? 'Anual' : 'Mensal'})`
+              ? `HomeWise ${planoSalvo.nome} (${cicloAtual === 'anual' ? 'Anual' : 'Mensal'})`
               : 'Sem plano contratado'}
           </Text>
         </View>
@@ -405,14 +430,14 @@ export default function GerenciarAssinaturaScreen() {
           accessible
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
-          accessibilityLabel={`Pagamento aprovado, simulação. ${confirmacao} Checkout demonstrativo, nenhuma cobrança real foi feita.`}
+          accessibilityLabel={`${confirmacao} Checkout demonstrativo, nenhuma cobrança real foi feita.`}
         >
           <View style={styles.confirmacaoIcone}>
             <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.confirmacaoTopo}>
-              <Text style={styles.confirmacaoTitulo}>Pagamento aprovado</Text>
+              <Text style={styles.confirmacaoTitulo}>Simulação concluída</Text>
               <View style={styles.seloSimulacao}>
                 <Text style={styles.seloSimulacaoTexto}>SIMULAÇÃO</Text>
               </View>
@@ -459,7 +484,7 @@ export default function GerenciarAssinaturaScreen() {
 
       <View style={styles.list}>
         {planos.map(plano => {
-          const ehPlanoAtual = planoSalvo?.id === plano.id && (perfil?.ciclo_assinatura || 'mensal') === ciclo;
+          const ehPlanoAtual = planoSalvo?.id === plano.id && cicloAtual === ciclo;
           const carregandoEste = salvandoId === plano.id;
           return (
             <View key={plano.id} style={[s.card, (plano.id === 'plus' || ehPlanoAtual) && s.featured]}>
