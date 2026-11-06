@@ -100,18 +100,27 @@ export default function HomeScreen() {
   const potenciaAtual = statusDesconhecido ? '--' : leitura && online ? Number(leitura.potencia_w).toFixed(0) : '0';
   const tensaoAtual = statusDesconhecido ? '--' : leitura && online ? Number(leitura.tensao_v).toFixed(0) : '0';
 
-  // Custo estimado do mes com base no consumo real do mes atual
-  const custoAgua = aguaMesNum * TARIFA_AGUA_POR_LITRO;
-  const custoEnergia = energiaMesNum * TARIFA_ENERGIA_KWH;
-  const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
-
-  // Inteligencia da Linha de Base (Baseline de 30 dias)
+  // Inteligencia da Linha de Base (Baseline de 30 dias + Previsao do Mes Inteiro)
   const statusBaseline: StatusBaseline = calcularStatusBaseline(
     historicoDiario,
     aguaHojeNum,
     energiaHojeNum,
-    leiturasParaCalculo
+    leiturasParaCalculo,
+    agoraData
   );
+
+  const diasComputadosMes = statusBaseline.diasComputadosMesAtual ?? 0;
+  const diasRestantesMes = statusBaseline.diasRestantesMesAtual ?? 30;
+  const aguaPrevistaMesNum = statusBaseline.previsaoAguaMesInteiroLitros ?? (aguaMesNum + diasRestantesMes * statusBaseline.mediaAguaLitrosDia);
+  const energiaPrevistaMesNum = statusBaseline.previsaoEnergiaMesInteiroKwh ?? (energiaMesNum + diasRestantesMes * statusBaseline.mediaEnergiaKwhDia);
+
+  const aguaMesPrevisto = totaisDisponiveis ? Number(aguaPrevistaMesNum).toFixed(0) : '--';
+  const energiaMesPrevisto = totaisDisponiveis ? Number(energiaPrevistaMesNum).toFixed(1) : '--';
+
+  // Custo estimado do mes inteiro: soma os dias ja computados no mes + (dias restantes * media aprendida)
+  const custoAgua = aguaPrevistaMesNum * TARIFA_AGUA_POR_LITRO;
+  const custoEnergia = energiaPrevistaMesNum * TARIFA_ENERGIA_KWH;
+  const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
   const possivelVazamento = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
@@ -268,7 +277,11 @@ export default function HomeScreen() {
                 </Text>
                 <View style={styles.linhaVariacao}>
                   <Ionicons name="calculator-outline" size={13} color={C.textoTer} />
-                  <Text style={styles.contaSub}>Baseado na tarifa de consumo atual</Text>
+                  <Text style={styles.contaSub}>
+                    {totaisDisponiveis
+                      ? `${diasComputadosMes}d medidos + ${diasRestantesMes}d pela média aprendida`
+                      : 'Baseado na tarifa de consumo atual'}
+                  </Text>
                 </View>
                 <SeloDesatualizado visivel={totaisDesatualizados} />
               </View>
@@ -287,7 +300,7 @@ export default function HomeScreen() {
               rotulo="Água hoje"
               valor={aguaHoje}
               unidade="L"
-              mes={`${aguaMes} L este mês`}
+              mes={totaisDisponiveis ? `${aguaMes} L (${diasComputadosMes}d) • Prev: ${aguaMesPrevisto} L` : `${aguaMes} L este mês`}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/agua')}
             />
@@ -297,7 +310,7 @@ export default function HomeScreen() {
               rotulo="Energia hoje"
               valor={energiaHoje}
               unidade="kWh"
-              mes={`${energiaMes} kWh este mês`}
+              mes={totaisDisponiveis ? `${energiaMes} kWh (${diasComputadosMes}d) • Prev: ${energiaMesPrevisto} kWh` : `${energiaMes} kWh este mês`}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/energia')}
             />
@@ -420,11 +433,17 @@ export default function HomeScreen() {
                 <View style={styles.itemMetricaBaseline}>
                   <Text style={styles.labelMetricaBaseline}>Média Água Aprendida</Text>
                   <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaAguaLitrosDia} L/dia</Text>
+                  <Text style={[styles.labelMetricaBaseline, { marginTop: 4 }]}>
+                    Prev. mês: {statusBaseline.previsaoAguaMesInteiroLitros} L
+                  </Text>
                 </View>
                 <View style={styles.divisorMetrica} />
                 <View style={styles.itemMetricaBaseline}>
                   <Text style={styles.labelMetricaBaseline}>Média Energia Aprendida</Text>
                   <Text style={styles.valorMetricaBaseline}>{statusBaseline.mediaEnergiaKwhDia} kWh/dia</Text>
+                  <Text style={[styles.labelMetricaBaseline, { marginTop: 4 }]}>
+                    Prev. mês: {statusBaseline.previsaoEnergiaMesInteiroKwh} kWh
+                  </Text>
                 </View>
               </View>
             )}

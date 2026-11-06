@@ -84,7 +84,8 @@ export default function EnergiaScreen() {
     historicoDiario,
     aguaHojeNum,
     energiaHojeNum,
-    leiturasParaCalculo
+    leiturasParaCalculo,
+    agoraData
   );
 
   // Consumo acumulado real do periodo selecionado (Dia / Semana / Mes / Ano)
@@ -102,7 +103,14 @@ export default function EnergiaScreen() {
   const potenciaKw = statusDesconhecido ? '--' : online && leitura ? (Number(leitura.potencia_w) / 1000).toFixed(2) : '0.00';
   const potenciaW = statusDesconhecido ? '--' : online && leitura ? leitura.potencia_w.toFixed(0) : '0';
   const tensaoV = statusDesconhecido ? '--' : online && leitura ? leitura.tensao_v.toFixed(1) : '0.0';
-  const previsaoMes = totaisDisponiveis ? (statusBaseline.mediaEnergiaKwhDia * 30).toFixed(1) : '--';
+  const diasComputadosMes = statusBaseline.diasComputadosMesAtual ?? 0;
+  const diasRestantesMes = statusBaseline.diasRestantesMesAtual ?? 30;
+  const acumuladoMesKwh = totaisDisponiveis
+    ? Number(statusBaseline.energiaAcumuladaMesKwh ?? 0).toFixed(2)
+    : '--';
+  const previsaoMes = totaisDisponiveis
+    ? Number(statusBaseline.previsaoEnergiaMesInteiroKwh ?? (statusBaseline.mediaEnergiaKwhDia * 30)).toFixed(2)
+    : '--';
 
   // Calcula medias reais do historico
   const mediaDiaria = totaisDisponiveis ? statusBaseline.mediaEnergiaKwhDia.toFixed(2) : '--';
@@ -213,14 +221,24 @@ export default function EnergiaScreen() {
                 <Ionicons name="chevron-forward" size={14} color={C.marca} />
               </TouchableOpacity>
             </View>
+            <LinhaResumo
+              icone="stats-chart-outline"
+              rotulo={`Acumulado no mês (${diasComputadosMes}d)`}
+              valor={`${acumuladoMesKwh} kWh`}
+            />
             <LinhaResumo icone="analytics-outline" rotulo="Média diária aprendida" valor={`${mediaDiaria} kWh/dia`} />
             <LinhaResumo
               icone={statusBaseline.fase === 'calibrado' ? 'sparkles-outline' : 'hourglass-outline'}
               rotulo="Linha de Base"
-              valor={!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
+              valor={!totaisDisponiveis ? '--' : statusBaseline.fase === 'calibrado' ? 'Calibrado (30/30 d)' : `Aprendizado (${statusBaseline.diasRegistrados}/30 d)`}
               cor={statusBaseline.fase === 'calibrado' ? C.ok : ACENTO}
             />
-            <LinhaResumo icone="calendar-outline" rotulo="Previsão mensal" valor={`${previsaoMes} kWh`} ultima />
+            <LinhaResumo
+              icone="calendar-outline"
+              rotulo={`Previsão mês inteiro (${diasComputadosMes}d + ${diasRestantesMes}d)`}
+              valor={`${previsaoMes} kWh`}
+              ultima
+            />
           </View>
 
         </View>

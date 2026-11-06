@@ -30,6 +30,13 @@ export interface StatusBaseline {
   progressoPorcentagem: number;
   mediaAguaLitrosDia: number;
   mediaEnergiaKwhDia: number;
+  diasTotaisMesAtual: number;
+  diasComputadosMesAtual: number;
+  diasRestantesMesAtual: number;
+  aguaAcumuladaMesLitros: number;
+  energiaAcumuladaMesKwh: number;
+  previsaoAguaMesInteiroLitros: number;
+  previsaoEnergiaMesInteiroKwh: number;
   comparativoAguaPercent: number; // % em relacao a baseline (+15% ou -10%)
   comparativoEnergiaPercent: number;
   statusEficiencia: 'otimo' | 'normal' | 'alerta';
@@ -219,18 +226,52 @@ export function calcularStatusBaseline(
   historicoDiario: ConsumoDiario[],
   consumoHojeAgua: number,
   consumoHojeEnergia: number,
-  leituras: Leitura[] = []
+  leituras: Leitura[] = [],
+  agora: Date = new Date()
 ): StatusBaseline {
   const META_DIAS = 30;
   const consolidados = consolidarHistoricoDiario(historicoDiario, leituras);
   const diasValidos = consolidados.filter((d) => d.consumo_agua_litros > 0 || d.energia_kwh > 0);
 
-  // Calcula medias reais exclusivamente sobre os dias em que houve medicao
-  const somaAgua = diasValidos.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0);
-  const somaEnergia = diasValidos.reduce((acc, cur) => acc + cur.energia_kwh, 0);
+  // Calcula a media aprendida usando o mes de treinamento (primeiros 30 dias calibrados)
+  // ou os dias ja disponiveis enquanto ainda esta na fase de aprendizado
+  const diasTreinamento = diasValidos.length >= META_DIAS
+    ? diasValidos.slice(0, META_DIAS)
+    : diasValidos;
 
-  const mediaAgua = diasValidos.length > 0 ? somaAgua / diasValidos.length : 0;
-  const mediaEnergia = diasValidos.length > 0 ? somaEnergia / diasValidos.length : 0;
+  const somaAgua = diasTreinamento.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0);
+  const somaEnergia = diasTreinamento.reduce((acc, cur) => acc + cur.energia_kwh, 0);
+
+  const mediaAgua = diasTreinamento.length > 0 ? somaAgua / diasTreinamento.length : 0;
+  const mediaEnergia = diasTreinamento.length > 0 ? somaEnergia / diasTreinamento.length : 0;
+
+  // Filtra os dias ja computados no mes atual para compor a previsao do mes inteiro:
+  // Previsao Mes Inteiro = Acumulado nos dias ja computados do mes + (Dias restantes * Media diaria aprendida)
+  const anoAtual = agora.getFullYear();
+  const mesAtualNumero = agora.getMonth() + 1;
+  const prefixoMesAtual = `${anoAtual}-${String(mesAtualNumero).padStart(2, '0')}-`;
+  const diasTotaisMesAtual = new Date(anoAtual, mesAtualNumero, 0).getDate();
+
+  const registrosMesAtual = diasValidos.filter((d) => d.data.startsWith(prefixoMesAtual));
+  const diasComputadosMesAtual = Math.min(registrosMesAtual.length, diasTotaisMesAtual);
+  const diasRestantesMesAtual = Math.max(diasTotaisMesAtual - diasComputadosMesAtual, 0);
+
+  const aguaAcumuladaMesLitros = Number(
+    registrosMesAtual.reduce((acc, cur) => acc + cur.consumo_agua_litros, 0).toFixed(1)
+  );
+  const energiaAcumuladaMesKwh = Number(
+    registrosMesAtual.reduce((acc, cur) => acc + cur.energia_kwh, 0).toFixed(2)
+  );
+
+  const mediaAguaArredondada = Number(mediaAgua.toFixed(1));
+  const mediaEnergiaArredondada = Number(mediaEnergia.toFixed(2));
+
+  const previsaoAguaMesInteiroLitros = Number(
+    (aguaAcumuladaMesLitros + diasRestantesMesAtual * mediaAguaArredondada).toFixed(1)
+  );
+  const previsaoEnergiaMesInteiroKwh = Number(
+    (energiaAcumuladaMesKwh + diasRestantesMesAtual * mediaEnergiaArredondada).toFixed(2)
+  );
 
   const diasContados = diasValidos.length;
   const calibrado = diasContados >= META_DIAS;
@@ -270,8 +311,15 @@ export function calcularStatusBaseline(
     diasRegistrados: diasContados,
     metaDias: META_DIAS,
     progressoPorcentagem: progresso,
-    mediaAguaLitrosDia: Number(mediaAgua.toFixed(1)),
-    mediaEnergiaKwhDia: Number(mediaEnergia.toFixed(2)),
+    mediaAguaLitrosDia: mediaAguaArredondada,
+    mediaEnergiaKwhDia: mediaEnergiaArredondada,
+    diasTotaisMesAtual,
+    diasComputadosMesAtual,
+    diasRestantesMesAtual,
+    aguaAcumuladaMesLitros,
+    energiaAcumuladaMesKwh,
+    previsaoAguaMesInteiroLitros,
+    previsaoEnergiaMesInteiroKwh,
     comparativoAguaPercent: diffAguaPercent,
     comparativoEnergiaPercent: diffEnergiaPercent,
     statusEficiencia,

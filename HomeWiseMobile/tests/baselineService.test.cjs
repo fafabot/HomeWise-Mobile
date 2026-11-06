@@ -160,3 +160,45 @@ test('daily: error during registration also releases the returned resource exact
   stop();
   assert.equal(h.listeners[0].stops, 1);
 });
+
+test('calcularStatusBaseline: computes full-month forecast from measured days in month + remaining days * 30-day training average', () => {
+  const h = harness();
+  const diasOutubro = Array.from({ length: 30 }, (_, idx) => ({
+    id: `central_${idx + 1}`,
+    dispositivo_id: 'central',
+    data: `2026-10-${String(idx + 1).padStart(2, '0')}`,
+    consumo_agua_litros: 143.1,
+    energia_kwh: 5.42,
+    pico_potencia_w: 1800,
+    pico_vazao_l_min: 7.5,
+    media_tensao_v: 127,
+    leituras_computadas: 24,
+  }));
+  const diasNovembro = [
+    { id: 'c_1', dispositivo_id: 'central', data: '2026-11-01', consumo_agua_litros: 152.0, energia_kwh: 5.80, pico_potencia_w: 2400, pico_vazao_l_min: 9.2, media_tensao_v: 127, leituras_computadas: 4 },
+    { id: 'c_2', dispositivo_id: 'central', data: '2026-11-02', consumo_agua_litros: 165.5, energia_kwh: 6.10, pico_potencia_w: 2550, pico_vazao_l_min: 10.4, media_tensao_v: 126.9, leituras_computadas: 4 },
+    { id: 'c_3', dispositivo_id: 'central', data: '2026-11-03', consumo_agua_litros: 128.0, energia_kwh: 4.60, pico_potencia_w: 1750, pico_vazao_l_min: 7.5, media_tensao_v: 127.2, leituras_computadas: 4 },
+    { id: 'c_4', dispositivo_id: 'central', data: '2026-11-04', consumo_agua_litros: 139.5, energia_kwh: 5.15, pico_potencia_w: 1920, pico_vazao_l_min: 8.1, media_tensao_v: 127, leituras_computadas: 4 },
+    { id: 'c_5', dispositivo_id: 'central', data: '2026-11-05', consumo_agua_litros: 144.0, energia_kwh: 5.30, pico_potencia_w: 2050, pico_vazao_l_min: 8.6, media_tensao_v: 126.8, leituras_computadas: 4 },
+    { id: 'c_6', dispositivo_id: 'central', data: '2026-11-06', consumo_agua_litros: 48.5, energia_kwh: 1.85, pico_potencia_w: 1480, pico_vazao_l_min: 6.8, media_tensao_v: 127.1, leituras_computadas: 3 },
+  ];
+
+  const status = h.service.calcularStatusBaseline(
+    [...diasOutubro, ...diasNovembro],
+    48.5,
+    1.85,
+    [],
+    new Date(2026, 10, 6, 12, 0, 0)
+  );
+
+  assert.equal(status.fase, 'calibrado');
+  assert.equal(status.mediaAguaLitrosDia, 143.1);
+  assert.equal(status.mediaEnergiaKwhDia, 5.42);
+  assert.equal(status.diasTotaisMesAtual, 30);
+  assert.equal(status.diasComputadosMesAtual, 6);
+  assert.equal(status.diasRestantesMesAtual, 24);
+  assert.equal(status.aguaAcumuladaMesLitros, 777.5);
+  assert.equal(status.energiaAcumuladaMesKwh, 28.8);
+  assert.equal(status.previsaoAguaMesInteiroLitros, 4211.9);
+  assert.equal(status.previsaoEnergiaMesInteiroKwh, 158.88);
+});
