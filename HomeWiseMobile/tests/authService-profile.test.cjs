@@ -283,7 +283,7 @@ test('mapa vazio/undefined não limpa endereço ou campos existentes', async () 
   assert.equal(h.documents.get(h.user.uid).endereco_detalhado.rua, 'Preservada');
 });
 
-for (const field of ['uid', 'email', 'nome', 'plano', 'status_assinatura', 'foto_perfil', 'metas_consumo']) {
+for (const field of ['uid', 'email', 'nome', 'plano', 'status_assinatura', 'foto_perfil', 'metas_consumo', 'perfil_acesso']) {
   test(`edição recusa campo fora do formulário: ${field}`, async () => {
     const h = harness(); h.auth.currentUser = h.user;
     const result = await h.service.atualizarPerfilUsuario('Pessoa', { [field]: 'unexpected' });

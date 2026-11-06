@@ -15,6 +15,7 @@ import { openBrowserAsync } from 'expo-web-browser';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfilePhoto from '@/components/ProfilePhoto';
 import { obterPlanoPorId, temPlanoAtivo } from '@/constants/planos';
+import { rotuloPerfilAcesso, temPermissaoAdmin } from '@/utils/permissoes';
 import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
@@ -29,6 +30,8 @@ export default function PerfilScreen() {
     ? obterPlanoPorId(perfil?.plano)
     : null;
   const rotuloPlano = planoAtivo ? `HomeWise ${planoAtivo.nome}` : 'Sem plano';
+  const ehAdminOuSuporte = temPermissaoAdmin(perfil);
+  const rotuloAcesso = rotuloPerfilAcesso(perfil);
 
   async function handleSair() {
     await sairDaConta();
@@ -93,13 +96,24 @@ export default function PerfilScreen() {
       titulo: 'Sobre',
       icone: 'information-circle-outline' as const,
       acao: abrirSobre
-    }
+    },
+    ...(ehAdminOuSuporte
+      ? [
+          {
+            id: 8,
+            titulo: 'Painel Técnico (Admin)',
+            icone: 'construct-outline' as const,
+            badge: rotuloAcesso,
+            acao: () => router.push('/painel-admin')
+          }
+        ]
+      : [])
   ];
 
 
   // ----- Apenas apresentação: agrupa as mesmas opções em seções -----
   const grupos = [
-    { titulo: 'CASA E CENTRAL', ids: [0, 3, 5, 6] },
+    { titulo: 'CASA E CENTRAL', ids: ehAdminOuSuporte ? [0, 3, 5, 6, 8] : [0, 3, 5, 6] },
     { titulo: 'CONTA E PLANO', ids: [1, 2, 4] },
     { titulo: 'SOBRE O APP', ids: [7] }
   ];
@@ -129,6 +143,10 @@ export default function PerfilScreen() {
               <View style={[styles.chip, planoAtivo ? styles.chipPlano : null]}>
                 <Ionicons name={planoAtivo ? 'diamond' : 'diamond-outline'} size={12} color={planoAtivo ? C.marca : C.textoTer} />
                 <Text style={[styles.chipTexto, { color: planoAtivo ? C.marca : C.textoSec }]}>{rotuloPlano}</Text>
+              </View>
+              <View style={[styles.chip, ehAdminOuSuporte ? styles.chipPlano : null]}>
+                <Ionicons name={ehAdminOuSuporte ? 'shield-checkmark' : 'person-outline'} size={12} color={ehAdminOuSuporte ? C.marca : C.textoTer} />
+                <Text style={[styles.chipTexto, { color: ehAdminOuSuporte ? C.marca : C.textoSec }]}>{`Perfil: ${rotuloAcesso}`}</Text>
               </View>
             </View>
 

@@ -31,11 +31,14 @@ export const PREFERENCIAS_NOTIFICACOES_PADRAO: PreferenciasNotificacoes = {
   status_central: true
 };
 
+export type PerfilAcesso = 'morador' | 'admin' | 'suporte';
+
 export interface DadosUsuario {
   uid: string;
   nome: string;
   email: string;
   dispositivo_id: string;
+  perfil_acesso?: PerfilAcesso;
   telefone?: string;
   cpf?: string;
   foto_perfil?: string;
@@ -257,7 +260,8 @@ export async function cadastrarUsuario(
   }
   const nomeExibicao = nome?.trim() || email.trim().split('@')[0];
   return concluirPerfil(user, nomeExibicao, { uid: user.uid, nome: nomeExibicao,
-    email: email.trim().toLowerCase(), dispositivo_id: dispositivoId.trim(), criado_em: new Date() }, 'criada');
+    email: email.trim().toLowerCase(), dispositivo_id: dispositivoId.trim(),
+    perfil_acesso: 'morador', criado_em: new Date() }, 'criada');
 }
 
 /**
