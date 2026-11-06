@@ -253,8 +253,8 @@ export function calcularStatusBaseline(
   const diasTotaisMesAtual = new Date(anoAtual, mesAtualNumero, 0).getDate();
 
   const registrosMesAtual = diasValidos.filter((d) => d.data.startsWith(prefixoMesAtual));
-  // Quando ha medicoes no mes atual, a contagem de dias acompanha o dia do calendario
-  // (ex.: no dia 6 mostra 6d + 24d; ao virar meia-noite para o dia 7, muda automaticamente para 7d + 23d)
+  // Quando ha medicoes no mes atual, a contagem de dias acompanha automaticamente o dia do calendario
+  // (ex.: no dia 6 mostra 6d + 24d; ao virar meia-noite para o dia 7, muda sozinho para 7d + 23d)
   const diasComputadosMesAtual = registrosMesAtual.length > 0
     ? Math.min(Math.max(agora.getDate(), registrosMesAtual.length), diasTotaisMesAtual)
     : 0;

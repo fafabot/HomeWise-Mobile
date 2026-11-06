@@ -2,7 +2,11 @@ import { createContext, useContext, useEffect, useState, type PropsWithChildren 
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
-import { DadosUsuario, salvarPerfilFirestore } from '@/services/authService';
+import {
+  DadosUsuario,
+  PreferenciasNotificacoes,
+  salvarPerfilFirestore
+} from '@/services/authService';
 import { obterPlanoPorId, type CicloAssinatura, type PlanoId } from '@/constants/planos';
 
 type Entry = 'login' | 'cadastro' | null;
@@ -21,6 +25,7 @@ interface AuthContextType {
     dadosFaturamento?: Partial<DadosUsuario>
   ) => Promise<boolean>;
   cancelarAssinatura: () => Promise<boolean>;
+  atualizarPreferenciasNotificacoes: (prefs: PreferenciasNotificacoes) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -32,7 +37,8 @@ const AuthContext = createContext<AuthContextType>({
   selectEntry: () => {},
   atualizarDispositivoId: async () => false,
   atualizarPlanoAssinatura: async () => false,
-  cancelarAssinatura: async () => false
+  cancelarAssinatura: async () => false,
+  atualizarPreferenciasNotificacoes: async () => false
 });
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -120,6 +126,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }
 
+  async function atualizarPreferenciasNotificacoes(
+    prefs: PreferenciasNotificacoes
+  ): Promise<boolean> {
+    setPerfil((atual) => (atual ? { ...atual, preferencias_notificacoes: prefs } : atual));
+    if (!user) return false;
+    return await salvarPerfilFirestore(user.uid, {
+      preferencias_notificacoes: prefs
+    });
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -131,7 +147,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         selectEntry,
         atualizarDispositivoId,
         atualizarPlanoAssinatura,
-        cancelarAssinatura
+        cancelarAssinatura,
+        atualizarPreferenciasNotificacoes
       }}
     >
       {children}
