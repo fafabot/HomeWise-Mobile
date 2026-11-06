@@ -63,7 +63,7 @@ export default function PainelAdminScreen() {
               </View>
               <Text style={styles.tituloRestrito}>Acesso Restrito — Permissão Insuficiente</Text>
               <Text style={styles.descricaoRestrito}>
-                {`Seu perfil atual é ${rotuloPapel}. O Painel Administrativo e de Diagnóstico Técnico (RF04) é exclusivo para contas com permissão de Administrador ou Suporte Técnico.`}
+                {`Seu perfil atual é ${rotuloPapel}. O Painel Administrativo e de Diagnóstico Técnico é exclusivo para contas com permissão de Administrador ou Suporte Técnico.`}
               </Text>
               <TouchableOpacity
                 style={styles.botaoVoltarRestrito}
