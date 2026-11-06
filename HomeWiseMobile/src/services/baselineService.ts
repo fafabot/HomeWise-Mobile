@@ -253,7 +253,11 @@ export function calcularStatusBaseline(
   const diasTotaisMesAtual = new Date(anoAtual, mesAtualNumero, 0).getDate();
 
   const registrosMesAtual = diasValidos.filter((d) => d.data.startsWith(prefixoMesAtual));
-  const diasComputadosMesAtual = Math.min(registrosMesAtual.length, diasTotaisMesAtual);
+  // Quando ha medicoes no mes atual, a contagem de dias acompanha o dia do calendario
+  // (ex.: no dia 6 mostra 6d + 24d; ao virar meia-noite para o dia 7, muda automaticamente para 7d + 23d)
+  const diasComputadosMesAtual = registrosMesAtual.length > 0
+    ? Math.min(Math.max(agora.getDate(), registrosMesAtual.length), diasTotaisMesAtual)
+    : 0;
   const diasRestantesMesAtual = Math.max(diasTotaisMesAtual - diasComputadosMesAtual, 0);
 
   const aguaAcumuladaMesLitros = Number(

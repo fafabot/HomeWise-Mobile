@@ -122,6 +122,14 @@ export default function HomeScreen() {
   const custoEnergia = energiaPrevistaMesNum * TARIFA_ENERGIA_KWH;
   const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
 
+  // Gasto em R$ medido hoje e previsto para o fechamento do dia de hoje
+  const custoAguaHoje = (aguaHojeNum * TARIFA_AGUA_POR_LITRO).toFixed(2).replace('.', ',');
+  const custoEnergiaHoje = (energiaHojeNum * TARIFA_ENERGIA_KWH).toFixed(2).replace('.', ',');
+  const aguaPrevistaDiaNum = Math.max(aguaHojeNum, statusBaseline.mediaAguaLitrosDia || 0);
+  const energiaPrevistaDiaNum = Math.max(energiaHojeNum, statusBaseline.mediaEnergiaKwhDia || 0);
+  const custoAguaPrevistoDia = (aguaPrevistaDiaNum * TARIFA_AGUA_POR_LITRO).toFixed(2).replace('.', ',');
+  const custoEnergiaPrevistoDia = (energiaPrevistaDiaNum * TARIFA_ENERGIA_KWH).toFixed(2).replace('.', ',');
+
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
   const possivelVazamento = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
   const consumoElevado = online && leitura ? (leitura.potencia_w > 3500) : false;
@@ -300,7 +308,8 @@ export default function HomeScreen() {
               rotulo="Água hoje"
               valor={aguaHoje}
               unidade="L"
-              mes={totaisDisponiveis ? `${aguaMes} L (${diasComputadosMes}d) • Prev: ${aguaMesPrevisto} L` : `${aguaMes} L este mês`}
+              gastoDia={totaisDisponiveis ? `Hoje: R$ ${custoAguaHoje} • Prev. dia: R$ ${custoAguaPrevistoDia}` : undefined}
+              mes={totaisDisponiveis ? `${aguaMes} L este mês (${diasComputadosMes}d) • Prev: ${aguaMesPrevisto} L` : `${aguaMes} L este mês`}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/agua')}
             />
@@ -310,7 +319,8 @@ export default function HomeScreen() {
               rotulo="Energia hoje"
               valor={energiaHoje}
               unidade="kWh"
-              mes={totaisDisponiveis ? `${energiaMes} kWh (${diasComputadosMes}d) • Prev: ${energiaMesPrevisto} kWh` : `${energiaMes} kWh este mês`}
+              gastoDia={totaisDisponiveis ? `Hoje: R$ ${custoEnergiaHoje} • Prev. dia: R$ ${custoEnergiaPrevistoDia}` : undefined}
+              mes={totaisDisponiveis ? `${energiaMes} kWh este mês (${diasComputadosMes}d) • Prev: ${energiaMesPrevisto} kWh` : `${energiaMes} kWh este mês`}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/energia')}
             />
@@ -459,12 +469,13 @@ export default function HomeScreen() {
 }
 
 /** Cartão de consumo do dia (água ou energia) que leva à tela de detalhes. */
-function CardConsumo({ icone, cor, rotulo, valor, unidade, mes, desatualizado, onPress }: {
+function CardConsumo({ icone, cor, rotulo, valor, unidade, gastoDia, mes, desatualizado, onPress }: {
   icone: keyof typeof Ionicons.glyphMap;
   cor: string;
   rotulo: string;
   valor: string;
   unidade: string;
+  gastoDia?: string;
   mes: string;
   desatualizado: boolean;
   onPress: () => void;
@@ -475,7 +486,7 @@ function CardConsumo({ icone, cor, rotulo, valor, unidade, mes, desatualizado, o
       activeOpacity={0.8}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${rotulo}: ${valor} ${unidade}. ${mes}.${desatualizado ? ' Desatualizado.' : ''} Abrir detalhes`}
+      accessibilityLabel={`${rotulo}: ${valor} ${unidade}.${gastoDia ? ` ${gastoDia}.` : ''} ${mes}.${desatualizado ? ' Desatualizado.' : ''} Abrir detalhes`}
     >
       <View style={styles.miniCardTopo}>
         <View style={[styles.miniCardIcone, { backgroundColor: `${cor}1f` }]}>
@@ -487,6 +498,7 @@ function CardConsumo({ icone, cor, rotulo, valor, unidade, mes, desatualizado, o
       <Text style={styles.miniCardValor} numberOfLines={1} adjustsFontSizeToFit>
         {valor}<Text style={styles.miniCardUnidade}> {unidade}</Text>
       </Text>
+      {gastoDia ? <Text style={[styles.miniCardGastoDia, { color: cor }]}>{gastoDia}</Text> : null}
       <View style={[styles.miniCardTraco, { backgroundColor: cor }]} />
       <Text style={styles.miniCardSub}>{mes}</Text>
       <SeloDesatualizado visivel={desatualizado} />
@@ -818,6 +830,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: C.textoSec,
     letterSpacing: 0
+  },
+  miniCardGastoDia: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginTop: 5,
+    ...NUMEROS
   },
   miniCardTraco: {
     width: 22,

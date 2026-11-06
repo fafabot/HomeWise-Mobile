@@ -201,4 +201,15 @@ test('calcularStatusBaseline: computes full-month forecast from measured days in
   assert.equal(status.energiaAcumuladaMesKwh, 28.8);
   assert.equal(status.previsaoAguaMesInteiroLitros, 4211.9);
   assert.equal(status.previsaoEnergiaMesInteiroKwh, 158.88);
+
+  // Quando o calendario vira para o dia 7 (07/11), avanca automaticamente para 7d + 23d
+  const statusDiaSeguinte = h.service.calcularStatusBaseline(
+    [...diasOutubro, ...diasNovembro],
+    0,
+    0,
+    [],
+    new Date(2026, 10, 7, 0, 5, 0)
+  );
+  assert.equal(statusDiaSeguinte.diasComputadosMesAtual, 7);
+  assert.equal(statusDiaSeguinte.diasRestantesMesAtual, 23);
 });
