@@ -37,23 +37,14 @@ export default function AlertasScreen() {
   const estadoLeitura = ultima.estado;
   const erroLeitura = ultima.erro;
   const [relogioMs, setRelogioMs] = useState(() => Date.now());
-  const [prefs, setPrefs] = useState<PreferenciasNotificacoes>(() => ({
+  const prefs: PreferenciasNotificacoes = {
     ...PREFERENCIAS_NOTIFICACOES_PADRAO,
     ...(perfil?.preferencias_notificacoes || {})
-  }));
+  };
   const [mostrarFiltros, setMostrarFiltros] = useState<boolean>(
     Boolean(perfil?.preferencias_notificacoes?.permitir_notificacoes)
   );
   const [mensagemPermissao, setMensagemPermissao] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (perfil?.preferencias_notificacoes) {
-      setPrefs({
-        ...PREFERENCIAS_NOTIFICACOES_PADRAO,
-        ...perfil.preferencias_notificacoes
-      });
-    }
-  }, [perfil?.preferencias_notificacoes]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -122,7 +113,6 @@ export default function AlertasScreen() {
       ...prefs,
       permitir_notificacoes: novoValor
     };
-    setPrefs(novasPrefs);
     await atualizarPreferenciasNotificacoes(novasPrefs);
   }
 
@@ -131,7 +121,6 @@ export default function AlertasScreen() {
       ...prefs,
       [chave]: !prefs[chave]
     };
-    setPrefs(novasPrefs);
     await atualizarPreferenciasNotificacoes(novasPrefs);
   }
 

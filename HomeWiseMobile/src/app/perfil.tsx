@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,22 +12,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
-import { deslogarUsuario } from '@/services/authService';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfilePhoto from '@/components/ProfilePhoto';
-import { authErrorMessage } from '@/services/authErrors';
 import { obterPlanoPorId, temPlanoAtivo } from '@/constants/planos';
 import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
 export default function PerfilScreen() {
   const router = useRouter();
-  const { user: usuario, perfil, dispositivoId } = useAuth();
-  const [saindo, setSaindo] = useState(false);
+  const { user: usuario, perfil, dispositivoId, sairDaConta, saindo, erroSaida } = useAuth();
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
-  const [erroSaida, setErroSaida] = useState('');
   const [erroSobre, setErroSobre] = useState('');
-  const saidaEmAndamento = useRef(false);
   const nomeExibicao = perfil?.nome || usuario?.displayName || usuario?.email?.split('@')[0] || 'Usuário';
   const emailExibicao = usuario?.email || '';
   const planoAtivo = temPlanoAtivo(perfil?.plano, perfil?.status_assinatura)
@@ -36,18 +31,7 @@ export default function PerfilScreen() {
   const rotuloPlano = planoAtivo ? `HomeWise ${planoAtivo.nome}` : 'Sem plano';
 
   async function handleSair() {
-    if (saidaEmAndamento.current) return;
-    saidaEmAndamento.current = true;
-    setSaindo(true);
-    setErroSaida('');
-    try {
-      await deslogarUsuario();
-    } catch (error) {
-      setErroSaida(authErrorMessage(error));
-    } finally {
-      saidaEmAndamento.current = false;
-      setSaindo(false);
-    }
+    await sairDaConta();
   }
 
   async function abrirSobre() {
@@ -192,14 +176,14 @@ export default function PerfilScreen() {
           {!!erroSobre && <Text accessibilityRole="alert" style={[styles.textoSair, { marginTop: 12 }]}>{erroSobre}</Text>}
 
           {/* Sair da conta */}
-          <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => { setErroSaida(''); setConfirmandoSaida(true); }}>
+          <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => setConfirmandoSaida(true)}>
             <Ionicons name="log-out-outline" size={18} color={C.perigo} style={{ marginRight: 8 }} />
             <Text style={styles.textoSair}>{saindo ? 'Saindo...' : 'Sair da conta'}</Text>
           </TouchableOpacity>
 
         </View>
       </ScrollView>
-      <Modal visible={confirmandoSaida} transparent animationType="fade" onRequestClose={() => { if (!saidaEmAndamento.current) setConfirmandoSaida(false); }}>
+      <Modal visible={confirmandoSaida} transparent animationType="fade" onRequestClose={() => { if (!saindo) setConfirmandoSaida(false); }}>
         <View style={styles.fundoModal}>
           <View style={styles.modalSaida} accessibilityViewIsModal>
             <View style={styles.modalIcone}>
@@ -207,7 +191,7 @@ export default function PerfilScreen() {
             </View>
             <Text accessibilityRole="header" style={styles.tituloModal}>Sair da conta</Text>
             <Text style={styles.mensagemSaida}>Deseja realmente sair da sua conta HomeWise?</Text>
-            {!!erroSaida && <Text accessibilityRole="alert" style={styles.textoSair}>{erroSaida}</Text>}
+            {!!erroSaida && <Text accessibilityRole="alert" style={styles.textoSair}>Não foi possível sair da conta. Tente novamente.</Text>}
             <View style={styles.acoesSaida}>
               <TouchableOpacity accessibilityRole="button" style={styles.botaoCancelar} disabled={saindo} onPress={() => setConfirmandoSaida(false)}>
                 <Text style={styles.textoCancelar}>Cancelar</Text>

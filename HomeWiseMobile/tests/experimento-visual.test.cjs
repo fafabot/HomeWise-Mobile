@@ -52,6 +52,7 @@ function harness({ perfil = {}, dispositivoId = 'central_teste', auth = {}, rout
     '@/services/firebase': { auth: {} },
     '@/components/ProfilePhoto': { __esModule: true, default: 'ProfilePhoto' },
     '@/components/HomeWiseLogo': { __esModule: true, default: 'HomeWiseLogo' },
+    '@/assets/images/logo homewise.png': 1,
     '@/components/AvisoFalhaLeituras': { __esModule: true, default: 'AvisoFalhaLeituras', SeloDesatualizado: 'SeloDesatualizado' },
     ...extras,
   };
@@ -165,16 +166,16 @@ test('gerenciar: confirmação de pagamento simulado some em 5 s e não volta ao
     assert.equal(h.chamadas.dadosAssinatura[0].nome, 'Morador de Teste');
     assert.equal(h.chamadas.dadosAssinatura[0].endereco_detalhado.rua, 'Rua Sintética');
     assert.equal(h.chamadas.dadosAssinatura[0].metodo_pagamento, 'pix');
-    assert.ok(textos(view).includes('Pagamento aprovado'));
+    assert.ok(textos(view).includes('Simulação concluída'));
     assert.ok(textos(view).includes('SIMULAÇÃO'));
     act(() => mock.timers.tick(4999));
-    assert.ok(textos(view).includes('Pagamento aprovado'));
+    assert.ok(textos(view).includes('Simulação concluída'));
     act(() => mock.timers.tick(1));
-    assert.equal(textos(view).includes('Pagamento aprovado'), false);
+    assert.equal(textos(view).includes('Simulação concluída'), false);
     assert.ok(botao(view, 'Cancelar'), 'cartão da assinatura atual mantém o botão Cancelar');
     act(() => view.unmount());
     const reaberta = render(Tela);
-    assert.equal(textos(reaberta).includes('Pagamento aprovado'), false);
+    assert.equal(textos(reaberta).includes('Simulação concluída'), false);
     act(() => reaberta.unmount());
   } finally { mock.timers.reset(); }
 });
@@ -374,26 +375,66 @@ test('balão: Escape fecha na web e o listener é removido', () => {
   } finally { delete globalThis.document; }
 });
 
-function telaComDados(tela, { plus = true } = {}) {
+function telaComDados(tela, { plus = true, diarios = [], energia = 1, agua = 88.4, baseline = {} } = {}) {
   const agora = new Date();
-  const leitura = { criado_em: new Date(agora.getTime() - 60e3), consumo_agua_litros: 88.4, vazao_l_min: 0.034, potencia_w: 40.2, tensao_v: 127, energia_kwh: 1 };
+  const leitura = { criado_em: new Date(agora.getTime() - 60e3), consumo_agua_litros: agua, vazao_l_min: 0.034, potencia_w: 40.2, tensao_v: 127, energia_kwh: energia };
   const fonte = { estado: 'pronto', dados: [], erro: null, recebido: true, desatualizado: false, recebidoEmMs: agora.getTime() };
   const fakeHook = {
     disponibilidade: () => 'ok', exibivel: d => d === 'ok' || d === 'desatualizado',
-    useLeiturasCentral: () => ({ leitura, historico: [leitura], historicoDiario: [], ultima: fonte, bruto: fonte, diario: fonte, fontes: [], tentarNovamente() {} }),
+    useLeiturasCentral: () => ({ leitura, historico: [leitura], historicoDiario: diarios, ultima: fonte, bruto: fonte, diario: fonte, fontes: [], tentarNovamente() {} }),
   };
   const h = harness({
     perfil: { plano: plus ? 'plus' : 'basico' },
     extras: {
       '@/hooks/use-leituras-central': fakeHook,
-      '@/services/leiturasService': { centralEstaOnline: () => true },
-      '@/services/baselineService': { calcularStatusBaseline: () => ({ fase: 'aprendizado', mediaAguaLitrosDia: 0, mediaEnergiaKwhDia: 0, diasRegistrados: 0, metaDias: 30, progressoPorcentagem: 0 }) },
+      '@/services/leiturasService': { centralEstaOnline: () => true, leituraEhDeHoje: () => true },
+      '@/services/baselineService': { calcularStatusBaseline: () => ({ fase: 'aprendizado', mediaAguaLitrosDia: 0, mediaEnergiaKwhDia: 0, diasRegistrados: 0, metaDias: 30, progressoPorcentagem: 0, ...baseline }) },
     },
   });
   return render(h.load(`app/${tela}.tsx`).default);
 }
 
-for (const [tela, metrica, valorHoje, unidade] of [['agua', 'Consumo no período', '88.4', ' L'], ['energia', 'Potência média', '40.2', ' W']]) {
+test('Energia aprovada: kWh acumulados corretos em Dia/Semana/Mês/Ano, sem duplicar o resumo de hoje', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 18, 12).getTime() });
+  const diarios = [['2026-11-18', 1.25], ['2026-11-16', 2], ['2026-11-13', 3],
+    ['2026-10-20', 4], ['2026-09-20', 5], ['2025-12-20', 6]]
+    .map(([data, energia_kwh]) => ({ data, energia_kwh, consumo_agua_litros: 1 }));
+  const view = telaComDados('energia', { diarios, energia: 1.25 });
+  try {
+    for (const [periodo, esperado] of [['Dia', '1.25'], ['Semana', '3.25'], ['Mês', '6.25'], ['Ano', '15.25']]) {
+      const tab = view.root.findAllByType('TouchableOpacity').find(n => n.props.accessibilityRole === 'tab' && n.props.accessibilityLabel === periodo);
+      act(() => tab.props.onPress()); abrirLayout(view);
+      const atual = colunas(view).at(-1);
+      act(() => atual.props.onPress());
+      assert.equal(atual.props.accessibilityState.selected, true);
+      const detalhes = view.root.findAll(n => n.type === 'View' && n.props.accessibilityLiveRegion === 'polite')
+        .find(n => n.findAllByType('Text').some(label => texto(label) === 'Consumo no período'));
+      assert.ok(detalhes, periodo + ': balão real aberto');
+      assert.ok(detalhes.findAllByType('Text').some(n => texto(n) === esperado &&
+        n.findAllByType('Text').some(unidade => texto(unidade) === ' kWh')), periodo + ': valor e kWh no mesmo detalhe');
+      assert.equal(detalhes.findAllByType('Text').some(n => texto(n) === ' W'), false);
+    }
+  } finally { act(() => view.unmount()); }
+});
+
+test('Início aprovado: gasto diário, componentes e média aprendida continuam em linhas dedicadas', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 18, 12).getTime() });
+  const view = telaComDados('index', { agua: 100, energia: 2,
+    diarios: [{ data: '2026-11-17', consumo_agua_litros: 200, energia_kwh: 4 }],
+    baseline: { mediaAguaLitrosDia: 100, mediaEnergiaKwhDia: 1, diasComputadosMesAtual: 4, diasRestantesMesAtual: 26 } });
+  try {
+    const label = value => view.root.findAllByType('Text').find(n => texto(n) === value);
+    assert.ok(label('Gasto no dia (hoje)')); assert.ok(label('R$ 2,55'));
+    const dia = label('Gasto no dia (hoje)').parent.findAllByType('Text').map(texto);
+    assert.ok(dia.includes('Água R$ 0,85')); assert.ok(dia.includes('Energia R$ 1,70'));
+    assert.ok(label('Gasto acumulado (4d)')); assert.ok(label('R$ 7,65'));
+    const media = label('Média aprendida:').parent.findAllByType('Text').map(texto);
+    assert.ok(media.includes('Média aprendida:')); assert.ok(media.includes('R$ 1,70/dia'));
+    assert.notEqual(label('Água R$ 0,85'), label('Energia R$ 1,70'), 'componentes em Text separados');
+  } finally { act(() => view.unmount()); }
+});
+
+for (const [tela, metrica, valorHoje, unidade] of [['agua', 'Consumo no período', '88.4', ' L'], ['energia', 'Consumo no período', '1', ' kWh']]) {
   test(`${tela}: seleção abre o balão da métrica certa, fecha ao tocar fora e limpa ao trocar de período`, () => {
     const view = telaComDados(tela);
     try {
@@ -402,6 +443,11 @@ for (const [tela, metrica, valorHoje, unidade] of [['agua', 'Consumo no período
       act(() => hoje().props.onPress());
       const t = textos(view);
       assert.ok(t.includes(metrica) && t.includes(valorHoje) && t.includes(unidade), `${tela}: ${metrica} ${valorHoje}${unidade}`);
+      assert.equal(hoje().props.accessibilityState.selected, true, 'barra selecionada');
+      if (tela === 'energia') {
+        assert.ok(t.includes('Consumo por período (kWh)'));
+        assert.ok(!t.includes('Potência média'), 'balão não deve regredir à métrica antiga em W');
+      }
       // Toque que começa dentro do cartão do gráfico: o evento sobe do cartão para o conteúdo e não fecha
       const [area, cartao] = view.root.findAll(n => n.type === 'View' && typeof n.props.onTouchStart === 'function');
       act(() => { cartao.props.onTouchStart(); area.props.onTouchStart(); });
