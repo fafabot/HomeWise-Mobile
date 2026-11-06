@@ -317,17 +317,15 @@ export default function HomeScreen() {
                 <View style={styles.resumoFinanceiroCol}>
                   <Text style={styles.resumoFinanceiroLabel}>Gasto no dia (hoje)</Text>
                   <Text style={styles.resumoFinanceiroValor}>R$ {custoTotalHoje}</Text>
-                  <Text style={styles.resumoFinanceiroDetalhe}>
-                    Água R$ {custoAguaHoje} • Energia R$ {custoEnergiaHoje}
-                  </Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>Água R$ {custoAguaHoje}</Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>Energia R$ {custoEnergiaHoje}</Text>
                 </View>
                 <View style={styles.resumoFinanceiroDivisor} />
                 <View style={styles.resumoFinanceiroCol}>
                   <Text style={styles.resumoFinanceiroLabel}>Gasto acumulado ({diasComputadosMes}d)</Text>
                   <Text style={styles.resumoFinanceiroValor}>R$ {custoAcumuladoMes}</Text>
-                  <Text style={styles.resumoFinanceiroDetalhe}>
-                    Média aprendida: R$ {custoMedioDiaAprendido}/dia
-                  </Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>Média aprendida:</Text>
+                  <Text style={styles.resumoFinanceiroDetalhe}>R$ {custoMedioDiaAprendido}/dia</Text>
                 </View>
               </View>
             )}
@@ -807,7 +805,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.bordaSuave,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12
   },
@@ -829,12 +827,13 @@ const styles = StyleSheet.create({
     color: C.texto,
     fontSize: 16,
     fontWeight: '800',
+    marginBottom: 4,
     ...NUMEROS
   },
   resumoFinanceiroDetalhe: {
     color: C.textoTer,
     fontSize: 11,
-    marginTop: 2,
+    lineHeight: 15,
     ...NUMEROS
   },
 
