@@ -1,0 +1,17 @@
+{
+  "description": "Synthetic generation recipe only: not a production daily summary or physical completeness proof.",
+  "month": "2026-11",
+  "days": 30,
+  "first_day_water_l": 0,
+  "first_day_energy_wh": 0,
+  "other_days_water_l": 1,
+  "other_days_energy_wh": 2,
+  "today": "2026-12-01",
+  "expected": {"phase":"calibrated","count":30,"water_total_l":29,"energy_total_wh":58},
+  "exclusions": [
+    {"schema_version":2,"local_date":"2026-12-01","status":"complete","valid":true,"water_l":999,"energy_wh":999},
+    {"schema_version":2,"local_date":"2026-10-31","status":"partial","valid":true,"water_l":999,"energy_wh":999},
+    {"schema_version":2,"local_date":"2026-10-30","status":"complete","valid":false,"water_l":999,"energy_wh":999},
+    {"schema_version":1,"local_date":"2026-10-29","status":"complete","valid":true,"water_l":999,"energy_wh":999}
+  ]
+}

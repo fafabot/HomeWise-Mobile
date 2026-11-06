@@ -1,0 +1,82 @@
+// LOCAL demo-homewise ONLY. Authorization proof, not a production release.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function enabled(device) {
+      return exists(/databases/$(database)/documents/centrais/$(device)) &&
+        get(/databases/$(database)/documents/centrais/$(device)).data.active == true;
+    }
+    function producer(device) {
+      return signedIn() && enabled(device) &&
+        get(/databases/$(database)/documents/centrais/$(device)).data.device_uid == request.auth.uid;
+    }
+    function resident(device) {
+      return signedIn() && enabled(device) &&
+        exists(/databases/$(database)/documents/centrais/$(device)/membros/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/centrais/$(device)/membros/$(request.auth.uid)).data.active == true;
+    }
+    function id(value) {
+      return value is string && value.matches('[A-Za-z0-9_-]{1,64}') && !value.matches('.*__.*');
+    }
+    function safeInteger(value) {
+      return value is int && value >= 0 && value <= 9007199254740991;
+    }
+    function measurement(value, quality) {
+      // Technical bound only, not sensor calibration or a homologated physical limit.
+      return (quality == 'valid' && value is number && value >= 0 && value <= 9007199254740991) ||
+        (quality in ['invalid', 'missing', 'stale'] && value == null);
+    }
+    function validEvent(device, eventId) {
+      let e = request.resource.data;
+      let q = e.quality;
+      return e.keys().hasOnly(['schema_version', 'device_id', 'firmware_version', 'boot_id',
+          'seq', 'uptime_ms', 'measured_at', 'clock_quality', 'water_epoch',
+          'water_pulses_total', 'calibration_id', 'energy_epoch', 'energy_total_wh',
+          'flow_l_min', 'power_w', 'voltage_v', 'quality', 'received_at']) &&
+        e.keys().hasAll(['schema_version', 'device_id', 'firmware_version', 'boot_id',
+          'seq', 'uptime_ms', 'measured_at', 'clock_quality', 'water_epoch',
+          'water_pulses_total', 'calibration_id', 'energy_epoch', 'energy_total_wh',
+          'flow_l_min', 'power_w', 'voltage_v', 'quality', 'received_at']) &&
+        e.schema_version == 2 && id(device) && e.device_id == device &&
+        id(e.boot_id) && id(e.water_epoch) && id(e.energy_epoch) && id(e.calibration_id) &&
+        e.firmware_version is string && e.firmware_version.size() > 0 && e.firmware_version.size() <= 64 &&
+        safeInteger(e.seq) && safeInteger(e.uptime_ms) &&
+        eventId == e.boot_id + '__' + string(e.seq) &&
+        ((e.clock_quality == 'unsynced' && e.measured_at == null) ||
+         (e.clock_quality in ['synced', 'estimated'] && e.measured_at is timestamp)) &&
+        e.received_at == request.time &&
+        q is map && q.keys().hasAll(['water_pulses_total', 'energy_total_wh', 'flow_l_min', 'power_w', 'voltage_v']) &&
+        q.keys().hasOnly(['water_pulses_total', 'energy_total_wh', 'flow_l_min', 'power_w', 'voltage_v']) &&
+        measurement(e.water_pulses_total, q.water_pulses_total) &&
+        (e.water_pulses_total == null || safeInteger(e.water_pulses_total)) &&
+        measurement(e.energy_total_wh, q.energy_total_wh) &&
+        measurement(e.flow_l_min, q.flow_l_min) &&
+        measurement(e.power_w, q.power_w) &&
+        measurement(e.voltage_v, q.voltage_v);
+    }
+    match /centrais/{device}/telemetria_v2/{eventId} {
+      allow create: if producer(device) && validEvent(device, eventId);
+      allow get: if producer(device) || resident(device);
+      allow list: if resident(device) && request.query.limit != null && request.query.limit <= 20;
+      allow update, delete: if false;
+    }
+    match /centrais/{device}/resumos/{day} {
+      allow read: if resident(device);
+      allow write: if false;
+    }
+    match /usuarios/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['uid', 'nome', 'dispositivo_id']) &&
+        request.resource.data.uid == uid && request.resource.data.nome is string &&
+        request.resource.data.dispositivo_id is string;
+      allow update: if signedIn() && request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'dispositivo_id']) &&
+        request.resource.data.nome is string && request.resource.data.dispositivo_id is string;
+      allow delete, list: if false;
+    }
+    // Registry, memberships, plans and all other paths: no client writes/reads by default.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

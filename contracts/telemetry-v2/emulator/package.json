@@ -1,0 +1,17 @@
+{
+  "name": "homewise-demo-authorization-proof",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-only synthetic authorization proof; never deploy",
+  "engines": {"node": ">=24.12.0"},
+  "scripts": {
+    "test": "node run-emulators.cjs",
+    "test:attached": "node --test authorization.test.cjs",
+    "test:guards": "node --test guard.test.cjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "13.2.0",
+    "firebase-tools": "15.35.0"
+  }
+}

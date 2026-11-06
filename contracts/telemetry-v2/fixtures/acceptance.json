@@ -1,0 +1,150 @@
+{
+  "fixture_version": 1,
+  "options": {"device_id":"central_a","timezone":"America/Sao_Paulo","calibrations":{"cal-a":1000}},
+  "base_event": {
+    "schema_version":2,"device_id":"central_a","firmware_version":"synthetic-v2",
+    "boot_id":"boot-a","seq":0,"uptime_ms":1000,
+    "measured_at":"2026-11-06T15:00:00.000Z","clock_quality":"synced",
+    "water_epoch":"water-a","water_pulses_total":100000,"calibration_id":"cal-a",
+    "energy_epoch":"meter-a","energy_total_wh":1000,
+    "flow_l_min":0,"power_w":0,"voltage_v":127,
+    "quality":{"water_pulses_total":"valid","energy_total_wh":"valid","flow_l_min":"valid","power_w":"valid","voltage_v":"valid"}
+  },
+  "aggregation_cases": [
+    {
+      "id":"first_sample_is_reference",
+      "events":[{}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    },
+    {
+      "id":"100_103_103_liters",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":103000,"energy_total_wh":1002}, {"seq":2,"uptime_ms":21000,"measured_at":"2026-11-06T15:00:20.000Z","water_pulses_total":103000,"energy_total_wh":1002}],
+      "expected":{"water_l":3,"energy_wh":2,"daily":{"2026-11-06":{"water_l":3,"energy_wh":2}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    },
+    {
+      "id":"valid_zero_is_not_missing",
+      "events":[{"water_pulses_total":0,"energy_total_wh":0},{"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":0,"energy_total_wh":0}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{"2026-11-06":{"water_l":0,"energy_wh":0}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    },
+    {
+      "id":"no_event_is_not_zero_measurement",
+      "events":[],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    },
+    {
+      "id":"sequence_gap_keeps_recoverable_delta",
+      "events":[{}, {"seq":3,"uptime_ms":31000,"measured_at":"2026-11-06T15:00:30.000Z","water_pulses_total":105000,"energy_total_wh":1004}],
+      "expected":{"water_l":5,"energy_wh":4,"daily":{"2026-11-06":{"water_l":5,"energy_wh":4}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["sequence_gap"]}
+    },
+    {
+      "id":"esp_reboot_water_epoch_changes_meter_continues",
+      "events":[{}, {"boot_id":"boot-b","water_epoch":"water-b","seq":0,"uptime_ms":1000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":0,"energy_total_wh":1002},{"boot_id":"boot-b","water_epoch":"water-b","seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:20.000Z","water_pulses_total":1000,"energy_total_wh":1003}],
+      "expected":{"water_l":1,"energy_wh":3,"daily":{"2026-11-06":{"water_l":1,"energy_wh":3}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["counter_boundary"]}
+    },
+    {
+      "id":"meter_reset_new_epoch_is_not_negative_consumption",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":101000,"energy_epoch":"meter-b","energy_total_wh":0},{"seq":2,"uptime_ms":21000,"measured_at":"2026-11-06T15:00:20.000Z","water_pulses_total":102000,"energy_epoch":"meter-b","energy_total_wh":2}],
+      "expected":{"water_l":2,"energy_wh":2,"daily":{"2026-11-06":{"water_l":2,"energy_wh":2}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["counter_boundary"]}
+    },
+    {
+      "id":"undeclared_counter_drop_is_flagged",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":99000}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{"2026-11-06":{"water_l":null,"energy_wh":0}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["counter_decreased"]}
+    },
+    {
+      "id":"local_midnight_unallocated_not_silently_prorated",
+      "events":[{"measured_at":"2026-11-07T02:59:50.000Z"},{"seq":1,"uptime_ms":21000,"measured_at":"2026-11-07T03:00:10.000Z","water_pulses_total":102000,"energy_total_wh":1001}],
+      "expected":{"water_l":2,"energy_wh":1,"daily":{},"unallocated_water_l":2,"unallocated_energy_wh":1,"coverage":"partial","issues":["cross_day_unallocated"]}
+    },
+    {
+      "id":"utc_midnight_is_not_residence_midnight",
+      "events":[{"measured_at":"2026-11-06T23:59:50.000Z"},{"seq":1,"uptime_ms":21000,"measured_at":"2026-11-07T00:00:10.000Z","water_pulses_total":102000,"energy_total_wh":1001}],
+      "expected":{"water_l":2,"energy_wh":1,"daily":{"2026-11-06":{"water_l":2,"energy_wh":1}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    },
+    {
+      "id":"estimated_clock_not_daily_measurement",
+      "events":[{"clock_quality":"estimated"}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["clock_uncertain"]}
+    },
+    {
+      "id":"unsynced_clock_has_no_invented_date",
+      "events":[{"clock_quality":"unsynced","measured_at":null}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["clock_uncertain"]}
+    },
+    {
+      "id":"calibration_change_is_boundary",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":102000,"calibration_id":"cal-b","energy_total_wh":1001}],
+      "expected":{"water_l":0,"energy_wh":1,"daily":{"2026-11-06":{"water_l":null,"energy_wh":1}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["counter_boundary"]}
+    },
+    {
+      "id":"different_content_same_id_is_quarantined",
+      "events":[{}, {"water_pulses_total":999000}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["id_conflict"]}
+    },
+    {
+      "id":"other_device_is_not_aggregated",
+      "events":[{"device_id":"central_b"}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["wrong_device"]}
+    },
+    {
+      "id":"invalid_water_sample_preserves_energy_and_marks_gap",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":null,"energy_total_wh":1001,"quality":{"water_pulses_total":"invalid","energy_total_wh":"valid","flow_l_min":"valid","power_w":"valid","voltage_v":"valid"}}, {"seq":2,"uptime_ms":21000,"measured_at":"2026-11-06T15:00:20.000Z","water_pulses_total":102000,"energy_total_wh":1002}],
+      "expected":{"water_l":2,"energy_wh":2,"daily":{"2026-11-06":{"water_l":2,"energy_wh":2}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["sensor_gap","sensor_unavailable"]}
+    },
+    {
+      "id":"clock_sequence_inconsistency_quarantines_boot",
+      "events":[{}, {"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T14:59:50.000Z","water_pulses_total":102000}],
+      "expected":{"water_l":0,"energy_wh":0,"daily":{},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":["order_inconsistent","sequence_gap"]}
+    }
+  ],
+  "delivery_cases":[
+    {
+      "id":"received_next_day_does_not_move_measurement_day",
+      "deliveries":[
+        {"received_at":"2026-11-08T15:00:00.000Z","event_changes":{"seq":1,"uptime_ms":11000,"measured_at":"2026-11-06T15:00:10.000Z","water_pulses_total":103000,"energy_total_wh":1002}},
+        {"received_at":"2026-11-08T15:00:10.000Z","event_changes":{}}
+      ],
+      "expected":{"water_l":3,"energy_wh":2,"daily":{"2026-11-06":{"water_l":3,"energy_wh":2}},"unallocated_water_l":0,"unallocated_energy_wh":0,"coverage":"partial","issues":[]}
+    }
+  ],
+  "invalid_cases":[
+    {"id":"missing_is_not_zero","changes":{"flow_l_min":null},"error":"flow_l_min"},
+    {"id":"string_not_number","changes":{"energy_total_wh":"1"},"error":"energy_total_wh"},
+    {"id":"negative_counter","changes":{"water_pulses_total":-1},"error":"water_pulses_total"},
+    {"id":"fractional_pulse","changes":{"water_pulses_total":1.5},"error":"water_pulses_total"},
+    {"id":"unsafe_seq","changes":{"seq":9007199254740992},"error":"seq"},
+    {"id":"path_injection","changes":{"device_id":"central_a/other"},"error":"device_id"},
+    {"id":"separator_collision","changes":{"boot_id":"boot__x"},"error":"boot_id"},
+    {"id":"local_time_not_utc","changes":{"measured_at":"2026-11-06T12:00:00-03:00"},"error":"measured_at"},
+    {"id":"impossible_date","changes":{"measured_at":"2026-02-30T15:00:00.000Z"},"error":"measured_at"},
+    {"id":"unsynced_cannot_claim_date","changes":{"clock_quality":"unsynced"},"error":"measured_at"},
+    {"id":"client_received_time_forbidden","changes":{"received_at":"2026-11-06T15:00:00.000Z"},"error":"fields"},
+    {"id":"future_schema_rejected","changes":{"schema_version":3},"error":"schema_version"}
+  ],
+  "permission_cases":[
+    {"id":"device_a_create_a","request":{"actor":{"kind":"device","device":"central_a"},"action":"create_event","device":"central_a"},"expected":true},
+    {"id":"device_a_cannot_create_b","request":{"actor":{"kind":"device","device":"central_a"},"action":"create_event","device":"central_b"},"expected":false},
+    {"id":"payload_identity_must_match","request":{"actor":{"kind":"device","device":"central_a"},"action":"create_event","device":"central_a","payload_device":"central_b"},"expected":false},
+    {"id":"revoked_device","request":{"actor":{"kind":"device","device":"central_a"},"action":"create_event","device":"central_a","active":false},"expected":false},
+    {"id":"device_get_own_event","request":{"actor":{"kind":"device","device":"central_a"},"action":"get_event","device":"central_a"},"expected":true},
+    {"id":"device_cannot_list","request":{"actor":{"kind":"device","device":"central_a"},"action":"list_events","device":"central_a"},"expected":false},
+    {"id":"device_cannot_mutate_event","request":{"actor":{"kind":"device","device":"central_a"},"action":"update_event","device":"central_a"},"expected":false},
+    {"id":"resident_a_reads_a","request":{"actor":{"kind":"resident","memberships":["central_a"]},"action":"read_summary","device":"central_a"},"expected":true},
+    {"id":"profile_selection_is_not_membership","request":{"actor":{"kind":"resident","memberships":["central_a"],"selected_device":"central_b"},"action":"read_summary","device":"central_b"},"expected":false},
+    {"id":"resident_cannot_write_events","request":{"actor":{"kind":"resident","memberships":["central_a"]},"action":"create_event","device":"central_a"},"expected":false},
+    {"id":"resident_cannot_write_summary","request":{"actor":{"kind":"resident","memberships":["central_a"]},"action":"write_summary","device":"central_a"},"expected":false},
+    {"id":"resident_cannot_grant_membership","request":{"actor":{"kind":"resident","memberships":["central_a"]},"action":"manage_members","device":"central_a"},"expected":false},
+    {"id":"anonymous_denied","request":{"actor":{"kind":"anonymous"},"action":"get_event","device":"central_a"},"expected":false},
+    {"id":"admin_client_not_backend","request":{"actor":{"kind":"admin_client"},"action":"write_summary","device":"central_a"},"expected":false},
+    {"id":"consolidator_writes_summary","request":{"actor":{"kind":"service","role":"consolidator"},"action":"write_summary","device":"central_a"},"expected":true},
+    {"id":"consolidator_cannot_revoke","request":{"actor":{"kind":"service","role":"consolidator"},"action":"revoke","device":"central_a"},"expected":false},
+    {"id":"device_admin_can_revoke","request":{"actor":{"kind":"service","role":"device_admin"},"action":"revoke","device":"central_a"},"expected":true},
+    {"id":"device_admin_cannot_write_summary","request":{"actor":{"kind":"service","role":"device_admin"},"action":"write_summary","device":"central_a"},"expected":false}
+  ],
+  "legacy_cases":[
+    {"input":{"dispositivo_id":"central_a","consumo_agua_litros":103,"energia_kwh":0.1,"criado_em":"2026-11-06T15:00:00Z"},"expected":"legacy_v1"},
+    {"input":{"schema_version":9},"expected":"unsupported"},
+    {"input":{"schema_version":2,"dispositivo_id":"central_a"},"expected":"invalid_v2"},
+    {"input":{},"expected":"unsupported"}
+  ]
+}
