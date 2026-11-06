@@ -21,6 +21,7 @@ import {
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
 import { montarBarrasConsumo } from '@/utils/barras-consumo';
+import { exportarRelatorioConsumo } from '@/utils/exportar-relatorio';
 import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 import SeletorSegmentado from '@/components/hw/SeletorSegmentado';
@@ -237,6 +238,18 @@ export default function AguaScreen() {
               valor={`${previsaoMesLitros} L`}
               ultima
             />
+            {totaisDisponiveis && (
+              <TouchableOpacity
+                style={styles.botaoExportar}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Exportar relatório de água em CSV"
+                onPress={() => void exportarRelatorioConsumo('agua', dispositivoId, historicoDiario, leiturasParaCalculo)}
+              >
+                <Ionicons name="download-outline" size={16} color={ACENTO} />
+                <Text style={styles.textoExportar}>Exportar relatório (CSV)</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
         </View>

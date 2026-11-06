@@ -175,6 +175,14 @@ export default function PerfilScreen() {
 
           {!!erroSobre && <Text accessibilityRole="alert" style={[styles.textoSair, { marginTop: 12 }]}>{erroSobre}</Text>}
 
+          {/* Nota de privacidade e LGPD (RNF10) */}
+          <View style={styles.cardLgpd}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={C.marca} />
+            <Text style={styles.textoLgpd}>
+              Seus dados pessoais e de consumo são protegidos segundo a LGPD (Lei nº 13.709/2018) e restritos exclusivamente à sua conta e à central vinculada.
+            </Text>
+          </View>
+
           {/* Sair da conta */}
           <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => setConfirmandoSaida(true)}>
             <Ionicons name="log-out-outline" size={18} color={C.perigo} style={{ marginRight: 8 }} />
@@ -308,9 +316,27 @@ const styles = StyleSheet.create({
     backgroundColor: alfa(C.perigo, 0.06),
     borderRadius: 16,
     minHeight: 52,
-    marginTop: 28,
+    marginTop: 18,
     borderWidth: 1,
     borderColor: alfa(C.perigo, 0.3)
+  },
+  cardLgpd: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: C.superficie,
+    borderWidth: 1,
+    borderColor: C.bordaSuave
+  },
+  textoLgpd: {
+    flex: 1,
+    color: C.textoTer,
+    fontSize: 11.5,
+    lineHeight: 16
   },
   textoSair: { color: C.perigo, fontSize: 15, fontWeight: '700' },
 
