@@ -1,2 +1,6 @@
 import AuthScreen from '@/components/AuthScreen';
-export default function CadastroScreen() { return <AuthScreen mode="cadastro" />; }
+import { useAuth } from '@/contexts/AuthContext';
+export default function CadastroScreen() {
+  const { chaveFormulario } = useAuth();
+  return <AuthScreen key={chaveFormulario} mode="cadastro" />;
+}
