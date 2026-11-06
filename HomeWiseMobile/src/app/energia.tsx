@@ -17,10 +17,10 @@ import { calcularStatusBaseline } from '@/services/baselineService';
 import { useAuth } from '@/contexts/AuthContext';
 import { temAcessoPlus } from '@/constants/planos';
 import {
-  montarBarrasPorPeriodo,
   calcularConsumoPorPeriodo,
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
+import { montarBarrasConsumo } from '@/utils/barras-consumo';
 import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 import SeletorSegmentado from '@/components/hw/SeletorSegmentado';
@@ -59,8 +59,8 @@ export default function EnergiaScreen() {
   const dispTotais = disponibilidade(bruto, diario);
   const totaisDisponiveis = exibivel(dispTotais);
   const totaisDesatualizados = dispTotais === 'desatualizado';
-  // O gráfico usa somente o histórico bruto e continua disponível se apenas o diário falhar
-  const dispGrafico = disponibilidade(bruto);
+  // O gráfico mostra consumo em kWh por período, calculado como os totais: depende do bruto + diário
+  const dispGrafico = dispTotais;
   const graficoDisponivel = exibivel(dispGrafico);
   const mensagemSemGrafico = dispGrafico === 'indisponivel' ? 'Histórico indisponível no momento.' : 'Carregando seu histórico...';
   const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
@@ -115,7 +115,8 @@ export default function EnergiaScreen() {
   // Calcula medias reais do historico
   const mediaDiaria = totaisDisponiveis ? statusBaseline.mediaEnergiaKwhDia.toFixed(2) : '--';
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'potencia_w', agoraData);
+  // Consumo (kWh) de cada período do gráfico, com a mesma função e as mesmas fontes do cartão de consumo
+  const barras = montarBarrasConsumo(leiturasParaCalculo, historicoDiario, periodo, 'energia_kwh', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
 
@@ -194,13 +195,13 @@ export default function EnergiaScreen() {
 
           {/* Gráfico de barras por período */}
           <View style={styles.card} {...toqueFora.propsDentro}>
-            <Text style={styles.tituloGrafico}>Potência média por período (W)</Text>
-            <Text style={styles.legenda}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
+            <Text style={styles.tituloGrafico}>Consumo por período (kWh)</Text>
+            <Text style={styles.legenda}>{graficoDisponivel ? 'Cada barra soma os kWh medidos no período. Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
             <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
             {graficoDisponivel && (
               <View style={{ marginTop: 14 }}>
-                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} unidade="W" chaveAnimacao={periodo}
-                  metrica="Potência média"
+                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={2} unidade="kWh" chaveAnimacao={periodo}
+                  metrica="Consumo no período"
                   selecionado={barraSelecionada}
                   onSelecionar={setBarraSelecionada}
                   desatualizado={dispGrafico === 'desatualizado'}
