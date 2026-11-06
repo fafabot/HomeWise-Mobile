@@ -107,23 +107,31 @@ export function AuthProvider({ children }: PropsWithChildren) {
   ): Promise<boolean> {
     if (!user) return false;
     const infoPlano = obterPlanoPorId(planoId);
-    return await salvarPerfilFirestore(user.uid, {
+    const dados: Partial<DadosUsuario> = {
       ...dadosFaturamento,
       plano: planoId,
       plano_nome: infoPlano?.nome || planoId,
       ciclo_assinatura: ciclo,
       status_assinatura: 'ativa',
       assinado_em: new Date()
-    });
+    };
+    const ok = await salvarPerfilFirestore(user.uid, dados);
+    if (!ok || auth.currentUser?.uid !== user.uid) return false;
+    setPerfil(atual => atual?.uid === user.uid ? { ...atual, ...dados } : atual);
+    return true;
   }
 
   async function cancelarAssinatura(): Promise<boolean> {
     if (!user) return false;
-    return await salvarPerfilFirestore(user.uid, {
+    const dados: Partial<DadosUsuario> = {
       plano: null,
       plano_nome: null,
       status_assinatura: 'cancelada'
-    });
+    };
+    const ok = await salvarPerfilFirestore(user.uid, dados);
+    if (!ok || auth.currentUser?.uid !== user.uid) return false;
+    setPerfil(atual => atual?.uid === user.uid ? { ...atual, ...dados } : atual);
+    return true;
   }
 
   async function atualizarPreferenciasNotificacoes(

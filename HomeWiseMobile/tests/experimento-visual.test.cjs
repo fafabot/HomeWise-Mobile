@@ -165,16 +165,16 @@ test('gerenciar: confirmação de pagamento simulado some em 5 s e não volta ao
     assert.equal(h.chamadas.dadosAssinatura[0].nome, 'Morador de Teste');
     assert.equal(h.chamadas.dadosAssinatura[0].endereco_detalhado.rua, 'Rua Sintética');
     assert.equal(h.chamadas.dadosAssinatura[0].metodo_pagamento, 'pix');
-    assert.ok(textos(view).includes('Pagamento aprovado'));
+    assert.ok(textos(view).includes('Simulação concluída'));
     assert.ok(textos(view).includes('SIMULAÇÃO'));
     act(() => mock.timers.tick(4999));
-    assert.ok(textos(view).includes('Pagamento aprovado'));
+    assert.ok(textos(view).includes('Simulação concluída'));
     act(() => mock.timers.tick(1));
-    assert.equal(textos(view).includes('Pagamento aprovado'), false);
+    assert.equal(textos(view).includes('Simulação concluída'), false);
     assert.ok(botao(view, 'Cancelar'), 'cartão da assinatura atual mantém o botão Cancelar');
     act(() => view.unmount());
     const reaberta = render(Tela);
-    assert.equal(textos(reaberta).includes('Pagamento aprovado'), false);
+    assert.equal(textos(reaberta).includes('Simulação concluída'), false);
     act(() => reaberta.unmount());
   } finally { mock.timers.reset(); }
 });
