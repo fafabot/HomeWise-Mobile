@@ -17,14 +17,15 @@ import { calcularStatusBaseline } from '@/services/baselineService';
 import { useAuth } from '@/contexts/AuthContext';
 import { temAcessoPlus } from '@/constants/planos';
 import {
-  montarBarrasPorPeriodo,
   calcularConsumoPorPeriodo,
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
+import { montarBarrasConsumo } from '@/utils/barras-consumo';
 import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 import SeletorSegmentado from '@/components/hw/SeletorSegmentado';
 import GraficoBarras from '@/components/hw/GraficoBarras';
+import { useFecharAoTocarFora } from '@/hooks/use-fechar-ao-tocar-fora';
 import CartaoUpgrade from '@/components/hw/CartaoUpgrade';
 import { LinhaResumo, criarEstilosConsumo } from '@/components/hw/TelaConsumo';
 
@@ -37,6 +38,9 @@ export default function AguaScreen() {
   const estadoLeitura = ultima.estado;
   const [relogioMs, setRelogioMs] = useState(() => Date.now());
   const [avisoUpgrade, setAvisoUpgrade] = useState(false);
+  // Barra do gráfico com o balão de detalhes aberto (limpa ao trocar de período)
+  const [barraSelecionada, setBarraSelecionada] = useState<number | null>(null);
+  const toqueFora = useFecharAoTocarFora(barraSelecionada !== null, () => setBarraSelecionada(null));
   const possuiPlus = temAcessoPlus(perfil?.plano, perfil?.status_assinatura);
 
   useEffect(() => {
@@ -55,8 +59,8 @@ export default function AguaScreen() {
   const dispTotais = disponibilidade(bruto, diario);
   const totaisDisponiveis = exibivel(dispTotais);
   const totaisDesatualizados = dispTotais === 'desatualizado';
-  // O gráfico usa somente o histórico bruto e continua disponível se apenas o diário falhar
-  const dispGrafico = disponibilidade(bruto);
+  // O gráfico mostra consumo em litros por período, calculado como os totais: depende do bruto + diário
+  const dispGrafico = dispTotais;
   const graficoDisponivel = exibivel(dispGrafico);
   const mensagemSemGrafico = dispGrafico === 'indisponivel' ? 'Histórico indisponível no momento.' : 'Carregando seu histórico...';
   const leiturasParaCalculo = leitura ? [...historico, leitura] : historico;
@@ -100,7 +104,8 @@ export default function AguaScreen() {
   // Calcula medias reais do historico
   const mediaDiariaLitros = totaisDisponiveis ? statusBaseline.mediaAguaLitrosDia.toFixed(1) : '--';
 
-  const barras = montarBarrasPorPeriodo(historico, periodo, 'vazao_l_min', agoraData);
+  // Consumo (L) de cada período do gráfico, com a mesma função e as mesmas fontes do cartão de consumo
+  const barras = montarBarrasConsumo(leiturasParaCalculo, historicoDiario, periodo, 'consumo_agua_litros', agoraData);
   const maiorValor = Math.max(...barras.map(barra => barra.valor ?? 0), 1);
 
 
@@ -108,7 +113,7 @@ export default function AguaScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.conteudo}>
+        <View style={styles.conteudo} {...toqueFora.propsArea}>
 
           <CabecalhoTela
             titulo="Água"
@@ -136,6 +141,7 @@ export default function AguaScreen() {
                 return;
               }
               setAvisoUpgrade(false);
+              setBarraSelecionada(null);
               setPeriodo(item);
             }}
           />
@@ -177,13 +183,18 @@ export default function AguaScreen() {
           </View>
 
           {/* Gráfico de barras por período */}
-          <View style={styles.card}>
-            <Text style={styles.tituloGrafico}>Vazão média por período (L/min)</Text>
-            <Text style={styles.legenda}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
+          <View style={styles.card} {...toqueFora.propsDentro}>
+            <Text style={styles.tituloGrafico}>Consumo por período (L)</Text>
+            <Text style={styles.legenda}>{graficoDisponivel ? 'Cada barra soma os litros medidos no período. Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
             <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
             {graficoDisponivel && (
               <View style={{ marginTop: 14 }}>
-                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} chaveAnimacao={periodo} />
+                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} unidade="L" chaveAnimacao={periodo}
+                  metrica="Consumo no período"
+                  selecionado={barraSelecionada}
+                  onSelecionar={setBarraSelecionada}
+                  desatualizado={dispGrafico === 'desatualizado'}
+                />
               </View>
             )}
           </View>

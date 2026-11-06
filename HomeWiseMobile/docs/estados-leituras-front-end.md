@@ -20,7 +20,8 @@ Os contratos consumidos estão em `leituras-contract.md` e `historico-diario-con
 | Indicador | Fontes |
 |---|---|
 | Valores instantâneos, status ao vivo, alertas de vazamento/pico/tensão | última leitura |
-| Gráficos de barras (água/energia) | histórico bruto |
+| Gráfico de barras de energia (potência média) | histórico bruto |
+| Gráfico de barras de água (consumo em L por período, `montarBarrasConsumo`) | histórico bruto + diário |
 | Consumo por período, custo previsto, médias, previsão e linha de base | histórico bruto + diário |
 | Metas (fórmula inalterada) | histórico bruto |
 

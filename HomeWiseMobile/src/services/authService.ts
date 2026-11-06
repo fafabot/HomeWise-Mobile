@@ -26,10 +26,19 @@ export interface DadosUsuario {
   cep?: string;
   cidade?: string;
   estado?: string;
+  endereco_detalhado?: {
+    rua?: string;
+    numero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    estado?: string;
+  };
   plano?: 'basico' | 'plus' | 'premium' | null;
   plano_nome?: string | null;
   ciclo_assinatura?: 'mensal' | 'anual';
   status_assinatura?: 'ativa' | 'cancelada' | 'inativa';
+  metodo_pagamento?: 'pix' | 'cartao';
   assinado_em?: any;
   atualizado_em?: any;
   criado_em?: any;

@@ -25,6 +25,7 @@ import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 import SeletorSegmentado from '@/components/hw/SeletorSegmentado';
 import GraficoBarras from '@/components/hw/GraficoBarras';
+import { useFecharAoTocarFora } from '@/hooks/use-fechar-ao-tocar-fora';
 import CartaoUpgrade from '@/components/hw/CartaoUpgrade';
 import { LinhaResumo, criarEstilosConsumo } from '@/components/hw/TelaConsumo';
 
@@ -37,6 +38,9 @@ export default function EnergiaScreen() {
   const estadoLeitura = ultima.estado;
   const [relogioMs, setRelogioMs] = useState(() => Date.now());
   const [avisoUpgrade, setAvisoUpgrade] = useState(false);
+  // Barra do gráfico com o balão de detalhes aberto (limpa ao trocar de período)
+  const [barraSelecionada, setBarraSelecionada] = useState<number | null>(null);
+  const toqueFora = useFecharAoTocarFora(barraSelecionada !== null, () => setBarraSelecionada(null));
   const possuiPlus = temAcessoPlus(perfil?.plano, perfil?.status_assinatura);
 
   useEffect(() => {
@@ -111,7 +115,7 @@ export default function EnergiaScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.conteudo}>
+        <View style={styles.conteudo} {...toqueFora.propsArea}>
 
           <CabecalhoTela
             titulo="Energia"
@@ -139,6 +143,7 @@ export default function EnergiaScreen() {
                 return;
               }
               setAvisoUpgrade(false);
+              setBarraSelecionada(null);
               setPeriodo(item);
             }}
           />
@@ -180,13 +185,18 @@ export default function EnergiaScreen() {
           </View>
 
           {/* Gráfico de barras por período */}
-          <View style={styles.card}>
+          <View style={styles.card} {...toqueFora.propsDentro}>
             <Text style={styles.tituloGrafico}>Potência média por período (W)</Text>
             <Text style={styles.legenda}>{graficoDisponivel ? 'Períodos sem leituras ficam sem barra.' : mensagemSemGrafico}</Text>
             <SeloDesatualizado visivel={dispGrafico === 'desatualizado'} />
             {graficoDisponivel && (
               <View style={{ marginTop: 14 }}>
-                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} chaveAnimacao={periodo} />
+                <GraficoBarras barras={barras} maior={maiorValor} cor={ACENTO} casas={1} unidade="W" chaveAnimacao={periodo}
+                  metrica="Potência média"
+                  selecionado={barraSelecionada}
+                  onSelecionar={setBarraSelecionada}
+                  desatualizado={dispGrafico === 'desatualizado'}
+                />
               </View>
             )}
           </View>
