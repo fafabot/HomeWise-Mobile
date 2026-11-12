@@ -28,6 +28,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
+import { detectarFluxoContinuoAgua } from '@/utils/vazamento';
 
 export default function AlertasScreen() {
   const router = useRouter();
@@ -70,7 +71,7 @@ export default function AlertasScreen() {
   );
 
   // Regras reais de anomalia baseadas nos sensores (apenas quando a central está transmitindo ao vivo)
-  const vazamentoDetectado = online && leitura ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50) : false;
+  const vazamentoDetectado = online && leitura ? detectarFluxoContinuoAgua(leitura, historico) : false;
   const potenciaDetectada = online && leitura ? (leitura.potencia_w > 3500) : false;
   const tensaoDetectada = online && leitura ? (leitura.tensao_v > 0 && (leitura.tensao_v < 100 || leitura.tensao_v > 140)) : false;
   const desvioBaselineDetectado =

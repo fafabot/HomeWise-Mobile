@@ -15,6 +15,7 @@ import { openBrowserAsync } from 'expo-web-browser';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfilePhoto from '@/components/ProfilePhoto';
 import { obterPlanoPorId, temPlanoAtivo } from '@/constants/planos';
+import { rotuloPerfilAcesso, temPermissaoAdmin } from '@/utils/permissoes';
 import { C, LARGURA_MAXIMA, alfa } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
 
@@ -29,6 +30,8 @@ export default function PerfilScreen() {
     ? obterPlanoPorId(perfil?.plano)
     : null;
   const rotuloPlano = planoAtivo ? `HomeWise ${planoAtivo.nome}` : 'Sem plano';
+  const ehAdminOuSuporte = temPermissaoAdmin(perfil);
+  const rotuloAcesso = rotuloPerfilAcesso(perfil);
 
   async function handleSair() {
     await sairDaConta();
@@ -93,13 +96,24 @@ export default function PerfilScreen() {
       titulo: 'Sobre',
       icone: 'information-circle-outline' as const,
       acao: abrirSobre
-    }
+    },
+    ...(ehAdminOuSuporte
+      ? [
+          {
+            id: 8,
+            titulo: 'Painel Técnico (Admin)',
+            icone: 'construct-outline' as const,
+            badge: rotuloAcesso,
+            acao: () => router.push('/painel-admin')
+          }
+        ]
+      : [])
   ];
 
 
   // ----- Apenas apresentação: agrupa as mesmas opções em seções -----
   const grupos = [
-    { titulo: 'CASA E CENTRAL', ids: [0, 3, 5, 6] },
+    { titulo: 'CASA E CENTRAL', ids: ehAdminOuSuporte ? [0, 3, 5, 6, 8] : [0, 3, 5, 6] },
     { titulo: 'CONTA E PLANO', ids: [1, 2, 4] },
     { titulo: 'SOBRE O APP', ids: [7] }
   ];
@@ -129,6 +143,10 @@ export default function PerfilScreen() {
               <View style={[styles.chip, planoAtivo ? styles.chipPlano : null]}>
                 <Ionicons name={planoAtivo ? 'diamond' : 'diamond-outline'} size={12} color={planoAtivo ? C.marca : C.textoTer} />
                 <Text style={[styles.chipTexto, { color: planoAtivo ? C.marca : C.textoSec }]}>{rotuloPlano}</Text>
+              </View>
+              <View style={[styles.chip, ehAdminOuSuporte ? styles.chipPlano : null]}>
+                <Ionicons name={ehAdminOuSuporte ? 'shield-checkmark' : 'person-outline'} size={12} color={ehAdminOuSuporte ? C.marca : C.textoTer} />
+                <Text style={[styles.chipTexto, { color: ehAdminOuSuporte ? C.marca : C.textoSec }]}>{`Perfil: ${rotuloAcesso}`}</Text>
               </View>
             </View>
 
@@ -174,6 +192,14 @@ export default function PerfilScreen() {
           ))}
 
           {!!erroSobre && <Text accessibilityRole="alert" style={[styles.textoSair, { marginTop: 12 }]}>{erroSobre}</Text>}
+
+          {/* Nota de privacidade e LGPD (RNF10) */}
+          <View style={styles.cardLgpd}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={C.marca} />
+            <Text style={styles.textoLgpd}>
+              Seus dados pessoais e de consumo são protegidos segundo a LGPD (Lei nº 13.709/2018) e restritos exclusivamente à sua conta e à central vinculada.
+            </Text>
+          </View>
 
           {/* Sair da conta */}
           <TouchableOpacity style={styles.botaoSair} activeOpacity={0.8} accessibilityRole="button" disabled={saindo} onPress={() => setConfirmandoSaida(true)}>
@@ -308,9 +334,27 @@ const styles = StyleSheet.create({
     backgroundColor: alfa(C.perigo, 0.06),
     borderRadius: 16,
     minHeight: 52,
-    marginTop: 28,
+    marginTop: 18,
     borderWidth: 1,
     borderColor: alfa(C.perigo, 0.3)
+  },
+  cardLgpd: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: C.superficie,
+    borderWidth: 1,
+    borderColor: C.bordaSuave
+  },
+  textoLgpd: {
+    flex: 1,
+    color: C.textoTer,
+    fontSize: 11.5,
+    lineHeight: 16
   },
   textoSair: { color: C.perigo, fontSize: 15, fontWeight: '700' },
 

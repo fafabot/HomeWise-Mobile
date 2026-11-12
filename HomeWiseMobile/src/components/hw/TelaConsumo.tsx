@@ -111,6 +111,19 @@ export function criarEstilosConsumo(acento: string) {
     },
     resumoTitulo: { color: C.texto, fontSize: 15, fontWeight: '700' },
     linkBotao: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32 },
-    resumoLink: { color: C.marca, fontSize: 13, fontWeight: '600' }
+    resumoLink: { color: C.marca, fontSize: 13, fontWeight: '600' },
+    botaoExportar: {
+      marginTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      minHeight: 42,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: alfa(acento, 0.35),
+      backgroundColor: alfa(acento, 0.1)
+    },
+    textoExportar: { color: C.texto, fontSize: 13, fontWeight: '700' }
   });
 }

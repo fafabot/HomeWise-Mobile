@@ -27,6 +27,7 @@ import {
   StatusBaseline
 } from '@/services/baselineService';
 import { calcularConsumoPorPeriodo } from '@/utils/grafico-periodos';
+import { detectarFluxoContinuoAgua } from '@/utils/vazamento';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -141,7 +142,7 @@ export default function HomeScreen() {
   const prefsNotif = perfil?.preferencias_notificacoes;
   const possivelVazamento =
     online && leitura && (prefsNotif?.vazamento_agua !== false)
-      ? (leitura.vazao_l_min > 5.0 && leitura.consumo_agua_litros > 50)
+      ? detectarFluxoContinuoAgua(leitura, historico)
       : false;
   const consumoElevado =
     online && leitura && (prefsNotif?.pico_energia !== false)
