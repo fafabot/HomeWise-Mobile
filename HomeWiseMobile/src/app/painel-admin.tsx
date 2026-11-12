@@ -51,7 +51,7 @@ export default function PainelAdminScreen() {
   const permissaoReal = temPermissaoAdmin(perfil);
   const [simulandoMorador, setSimulandoMorador] = useState(false);
   const autorizado = permissaoReal && !simulandoMorador;
-  const rotuloPapel = simulandoMorador ? 'Morador (Simulação RF04)' : rotuloPerfilAcesso(perfil);
+  const rotuloPapel = simulandoMorador ? 'Morador (Simulação)' : rotuloPerfilAcesso(perfil);
   const parametros = obterParametrosCalibracaoHardware();
 
   const [centralSelecionada, setCentralSelecionada] = useState<string>(
@@ -121,7 +121,7 @@ export default function PainelAdminScreen() {
               </View>
               <Text style={styles.tituloRestrito}>Acesso Restrito — Permissão Insuficiente</Text>
               <Text style={styles.descricaoRestrito}>
-                {`Seu perfil atual é ${rotuloPapel}. O Painel Administrativo e de Diagnóstico Técnico (RF04) é exclusivo para contas com permissão de Administrador ou Suporte Técnico.`}
+                {`Seu perfil atual é ${rotuloPapel}. O Painel Administrativo e de Diagnóstico Técnico é exclusivo para contas com permissão de Administrador ou Suporte Técnico.`}
               </Text>
               <View style={styles.acoesRestrito}>
                 {simulandoMorador && (
@@ -177,7 +177,7 @@ export default function PainelAdminScreen() {
               </View>
             </View>
 
-            <Text style={styles.tituloResumo}>Verificação de Centrais e Suporte (RF04)</Text>
+            <Text style={styles.tituloResumo}>Verificação de Centrais e Suporte</Text>
             <Text style={styles.subtituloResumo}>
               {`Inspecionando a central "${centralSelecionada}". Selecione outra central abaixo ou digite o código do dispositivo para verificar telemetria, sensores e moradores vinculados.`}
             </Text>
@@ -202,7 +202,7 @@ export default function PainelAdminScreen() {
                 onPress={() => setSimulandoMorador(true)}
               >
                 <Ionicons name="eye-outline" size={15} color={C.textoSec} />
-                <Text style={styles.textoBotaoSimular}>Simular visão Morador (RF04)</Text>
+                <Text style={styles.textoBotaoSimular}>Simular visão Morador</Text>
               </TouchableOpacity>
             </View>
           </View>
