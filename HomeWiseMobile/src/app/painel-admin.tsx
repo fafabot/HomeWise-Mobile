@@ -48,10 +48,8 @@ function diagnosticarTensao(tensaoV: number): { texto: string; cor: string } {
 export default function PainelAdminScreen() {
   const router = useRouter();
   const { user, perfil, dispositivoId } = useAuth();
-  const permissaoReal = temPermissaoAdmin(perfil);
-  const [simulandoMorador, setSimulandoMorador] = useState(false);
-  const autorizado = permissaoReal && !simulandoMorador;
-  const rotuloPapel = simulandoMorador ? 'Morador (Simulação)' : rotuloPerfilAcesso(perfil);
+  const autorizado = temPermissaoAdmin(perfil);
+  const rotuloPapel = rotuloPerfilAcesso(perfil);
   const parametros = obterParametrosCalibracaoHardware();
 
   const [centralSelecionada, setCentralSelecionada] = useState<string>(
@@ -124,17 +122,6 @@ export default function PainelAdminScreen() {
                 {`Seu perfil atual é ${rotuloPapel}. O Painel Administrativo e de Diagnóstico Técnico é exclusivo para contas com permissão de Administrador ou Suporte Técnico.`}
               </Text>
               <View style={styles.acoesRestrito}>
-                {simulandoMorador && (
-                  <TouchableOpacity
-                    style={styles.botaoRestaurarAdmin}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    onPress={() => setSimulandoMorador(false)}
-                  >
-                    <Ionicons name="shield-checkmark-outline" size={16} color={C.marca} style={{ marginRight: 6 }} />
-                    <Text style={styles.textoBotaoRestaurarAdmin}>Voltar para visão Admin</Text>
-                  </TouchableOpacity>
-                )}
                 <TouchableOpacity
                   style={styles.botaoVoltarRestrito}
                   activeOpacity={0.8}
@@ -193,16 +180,6 @@ export default function PainelAdminScreen() {
                 <Text style={styles.textoBotaoSecundario}>
                   {carregandoCentrais ? 'Atualizando...' : 'Atualizar centrais'}
                 </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.botaoSimular}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                onPress={() => setSimulandoMorador(true)}
-              >
-                <Ionicons name="eye-outline" size={15} color={C.textoSec} />
-                <Text style={styles.textoBotaoSimular}>Simular visão Morador</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -456,17 +433,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10
   },
-  botaoRestaurarAdmin: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: alfa(C.marca, 0.14),
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: alfa(C.marca, 0.4)
-  },
-  textoBotaoRestaurarAdmin: { color: C.marca, fontSize: 13, fontWeight: '700' },
   botaoVoltarRestrito: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -546,18 +512,6 @@ const styles = StyleSheet.create({
     borderColor: alfa(C.marca, 0.3)
   },
   textoBotaoSecundario: { color: C.marca, fontSize: 12, fontWeight: '700' },
-  botaoSimular: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: C.superficieAlta,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.borda
-  },
-  textoBotaoSimular: { color: C.textoSec, fontSize: 12, fontWeight: '600' },
 
   tituloSecao: {
     color: C.textoTer,
