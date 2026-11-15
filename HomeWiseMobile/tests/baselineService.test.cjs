@@ -192,6 +192,8 @@ test('calcularStatusBaseline: computes full-month forecast from measured days in
   );
 
   assert.equal(status.fase, 'calibrado');
+  assert.equal(status.diasRegistrados, 30);
+  assert.equal(status.metaDias, 30);
   assert.equal(status.mediaAguaLitrosDia, 143.1);
   assert.equal(status.mediaEnergiaKwhDia, 5.42);
   assert.equal(status.diasTotaisMesAtual, 30);

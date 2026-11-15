@@ -278,8 +278,9 @@ export function calcularStatusBaseline(
   );
 
   const diasContados = diasValidos.length;
+  const diasTreinamentoContados = diasTreinamento.length;
   const calibrado = diasContados >= META_DIAS;
-  const progresso = Math.min(Math.round((diasContados / META_DIAS) * 100), 100);
+  const progresso = Math.min(Math.round((diasTreinamentoContados / META_DIAS) * 100), 100);
 
   // Comparacao percentual do consumo de hoje contra a media real aprendida
   const diffAguaPercent = mediaAgua > 0 ? Math.round(((consumoHojeAgua - mediaAgua) / mediaAgua) * 100) : 0;
@@ -291,7 +292,7 @@ export function calcularStatusBaseline(
 
   if (!calibrado) {
     statusEficiencia = 'normal';
-    mensagem = `Fase de Aprendizado Ativa (${diasContados}/${META_DIAS} dias)`;
+    mensagem = `Fase de Aprendizado Ativa (${diasTreinamentoContados}/${META_DIAS} dias)`;
     dica = 'O sistema está conhecendo os hábitos de consumo da sua casa para personalizar os alertas.';
   } else {
     // Modo calibrado
@@ -312,7 +313,7 @@ export function calcularStatusBaseline(
 
   return {
     fase: calibrado ? 'calibrado' : 'aprendizado',
-    diasRegistrados: diasContados,
+    diasRegistrados: diasTreinamentoContados,
     metaDias: META_DIAS,
     progressoPorcentagem: progresso,
     mediaAguaLitrosDia: mediaAguaArredondada,
