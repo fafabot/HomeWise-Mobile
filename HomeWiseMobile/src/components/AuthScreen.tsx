@@ -131,7 +131,7 @@ export default function AuthScreen({ mode }: { mode: 'login' | 'cadastro' }) {
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} imageStyle={styles.heroImage} resizeMode="cover">
+            <ImageBackground source={require('../../assets/images/welcome-home.png')} style={styles.hero} resizeMode="cover">
               <View style={styles.shade} />
               {/* Na conclusão de perfil a sessão já existe: voltar não tem efeito; a saída é "Sair da conta". */}
               {!modoConclusao && <TouchableOpacity disabled={busy || recuperando} accessibilityRole="button" accessibilityLabel="Voltar para as boas-vindas" style={styles.back} onPress={() => panel.close(() => selectEntry(null))}><Ionicons name="chevron-back" size={22} color="#fff" /></TouchableOpacity>}
@@ -362,11 +362,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#07131b' },
   scroll: { flexGrow: 1 },
   card: { flexGrow: 1, width: '100%', backgroundColor: '#07131b' },
-  hero: { height: 220, backgroundColor: '#050e14', justifyContent: 'center', alignItems: 'center', paddingBottom: 18 },
-  heroImage: { width: '100%', height: '100%' },
+  hero: { height: 228, backgroundColor: '#050e14', justifyContent: 'center', alignItems: 'center', paddingBottom: 26 },
   shade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(5, 14, 20, 0.55)' },
   brand: { color: '#f1f7fa', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginTop: 6 },
-  form: { flexGrow: 1, padding: 26, paddingTop: 14, backgroundColor: '#0b1c27', marginTop: -30, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: '#173244' },
+  form: { flexGrow: 1, padding: 26, paddingTop: 14, backgroundColor: '#0b1c27', marginTop: -38, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: '#173244' },
   formContent: { width: '100%', maxWidth: 440, alignSelf: 'center' },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#21465c', alignSelf: 'center', marginBottom: 22 },
   back: { position: 'absolute', left: 16, top: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(11, 28, 39, 0.75)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.12)', justifyContent: 'center', alignItems: 'center', zIndex: 1 },
