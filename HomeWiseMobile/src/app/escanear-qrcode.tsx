@@ -1,5 +1,5 @@
 import { showAlert } from '@/utils/alert';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,12 +15,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import {
+  Camera,
+  CameraView,
+  useCameraPermissions,
+  type BarcodeScanningResult,
+  type BarcodeSettings,
+  type CameraType
+} from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMovimentoReduzido } from '@/hooks/use-movimento-reduzido';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SCAN_BOX_SIZE = Math.min(SCREEN_WIDTH * 0.72, 280);
+
+// Constante estática para evitar que o ExpoCameraView no Android recrie o analisador ML Kit a cada render
+const BARCODE_SETTINGS: BarcodeSettings = {
+  barcodeTypes: ['qr']
+};
 
 /** Linha de leitura que percorre a moldura; parada quando há movimento reduzido ou durante o salvamento. */
 function LinhaLeitura({ ativa }: { ativa: boolean }) {
@@ -45,11 +58,11 @@ function LinhaLeitura({ ativa }: { ativa: boolean }) {
   );
 }
 
-function extrairCodigoCentral(dadosBrutos: string): string {
+export function extrairCodigoCentral(dadosBrutos: string): string {
   const limpo = dadosBrutos.trim();
   // Trata URLs ou deep links caso o QR Code contenha parâmetros (ex: homewise://pair?device=central_01)
   if (limpo.includes('device=')) {
-    const match = limpo.match(/device=([^&]+)/);
+    const match = limpo.match(/device=([^&#\s]+)/);
     if (match) return decodeURIComponent(match[1]);
   }
   if (limpo.startsWith('homewise://')) {
@@ -64,7 +77,92 @@ export default function EscanearQRCodeScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [tochaAtiva, setTochaAtiva] = useState(false);
+  const [cameraTipo, setCameraTipo] = useState<CameraType>('back');
   const [salvando, setSalvando] = useState(false);
+  const bloqueioLeituraRef = useRef(false);
+
+  const processarDadosLidos = useCallback(async (dadosBrutos: string) => {
+    if (bloqueioLeituraRef.current) return;
+    bloqueioLeituraRef.current = true;
+    setScanned(true);
+
+    const codigo = extrairCodigoCentral(dadosBrutos);
+    if (!codigo) {
+      showAlert(
+        'QR Code Inválido',
+        'Não foi possível identificar o código da central no QR Code escaneado.',
+        [{
+          text: 'Tentar Novamente',
+          onPress: () => {
+            bloqueioLeituraRef.current = false;
+            setScanned(false);
+          }
+        }]
+      );
+      return;
+    }
+
+    setSalvando(true);
+    const sucesso = await atualizarDispositivoId(codigo);
+    setSalvando(false);
+
+    if (sucesso) {
+      showAlert(
+        'Central Conectada!',
+        `A central "${codigo}" foi vinculada com sucesso à sua conta.\nSuas medições em tempo real já estão ativas.`,
+        [
+          {
+            text: 'Ver Painel',
+            onPress: () => router.replace('/')
+          }
+        ]
+      );
+    } else {
+      showAlert(
+        'Erro ao Vincular',
+        'Ocorreu uma falha ao salvar a central no seu perfil. Tente novamente.',
+        [{
+          text: 'OK',
+          onPress: () => {
+            bloqueioLeituraRef.current = false;
+            setScanned(false);
+          }
+        }]
+      );
+    }
+  }, [atualizarDispositivoId, router]);
+
+  const handleBarcodeScanned = useCallback((result: BarcodeScanningResult) => {
+    if (!result?.data) return;
+    void processarDadosLidos(result.data);
+  }, [processarDadosLidos]);
+
+  async function handleLerDaGaleria() {
+    if (bloqueioLeituraRef.current || salvando) return;
+    try {
+      const resultadoImg = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1
+      });
+      if (resultadoImg.canceled || !resultadoImg.assets?.[0]?.uri) return;
+
+      const resultados = await Camera.scanFromURLAsync(resultadoImg.assets[0].uri, ['qr']);
+      if (resultados && resultados.length > 0 && resultados[0].data) {
+        await processarDadosLidos(resultados[0].data);
+      } else {
+        showAlert(
+          'Nenhum QR Code encontrado',
+          'Não foi possível identificar um QR Code válido na imagem selecionada.'
+        );
+      }
+    } catch {
+      showAlert(
+        'Leitura indisponível',
+        'Não foi possível analisar a imagem neste dispositivo. Aponte a câmera para o QR Code ou digite o código manualmente.'
+      );
+    }
+  }
 
   // Tratamento de permissão enquanto carrega
   if (!permission) {
@@ -91,49 +189,15 @@ export default function EscanearQRCodeScreen() {
           <Ionicons name="shield-checkmark" size={18} color="#07131b" style={{ marginRight: 8 }} />
           <Text style={styles.textoBotaoPermissao}>Permitir Acesso à Câmera</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.botaoGaleriaPermissao} activeOpacity={0.8} accessibilityRole="button" onPress={() => void handleLerDaGaleria()}>
+          <Ionicons name="image-outline" size={18} color="#22b7d4" style={{ marginRight: 8 }} />
+          <Text style={styles.textoBotaoGaleriaPermissao}>Ler QR Code de uma imagem</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.botaoVoltarSimples} accessibilityRole="button" onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={styles.textoVoltarSimples}>Voltar</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
-  }
-
-  async function handleBarcodeScanned(result: BarcodeScanningResult) {
-    if (scanned || salvando) return;
-    setScanned(true);
-
-    const codigo = extrairCodigoCentral(result.data);
-    if (!codigo) {
-      showAlert(
-        'QR Code Inválido',
-        'Não foi possível identificar o código da central no QR Code escaneado.',
-        [{ text: 'Tentar Novamente', onPress: () => setScanned(false) }]
-      );
-      return;
-    }
-
-    setSalvando(true);
-    const sucesso = await atualizarDispositivoId(codigo);
-    setSalvando(false);
-
-    if (sucesso) {
-      showAlert(
-        'Central Conectada!',
-        `A central "${codigo}" foi vinculada com sucesso à sua conta.\nSuas medições em tempo real já estão ativas.`,
-        [
-          {
-            text: 'Ver Painel',
-            onPress: () => router.replace('/')
-          }
-        ]
-      );
-    } else {
-      showAlert(
-        'Erro ao Vincular',
-        'Ocorreu uma falha ao salvar a central no seu perfil. Tente novamente.',
-        [{ text: 'OK', onPress: () => setScanned(false) }]
-      );
-    }
   }
 
   return (
@@ -143,36 +207,47 @@ export default function EscanearQRCodeScreen() {
       {/* Câmera em Tela Cheia */}
       <CameraView
         style={StyleSheet.absoluteFill}
-        facing="back"
+        facing={cameraTipo}
         enableTorch={tochaAtiva}
-        barcodeScannerSettings={{
-          barcodeTypes: ['qr']
-        }}
+        barcodeScannerSettings={BARCODE_SETTINGS}
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       />
 
       {/* Overlay Escuro com Janela Central Transparente */}
-      <SafeAreaView style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         {/* Barra Superior */}
         <View style={styles.topoBarra}>
           <TouchableOpacity style={styles.botaoCircular} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Fechar leitor" onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Ionicons name="close" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.tituloTopo}>Escanear QR Code</Text>
-          <TouchableOpacity
-            style={[styles.botaoCircular, tochaAtiva && styles.botaoCircularAtivo]}
-            activeOpacity={0.7}
-            onPress={() => setTochaAtiva(!tochaAtiva)}
-            accessibilityRole="button"
-            accessibilityLabel={tochaAtiva ? "Desligar lanterna" : "Ligar lanterna"}
-            accessibilityState={{ selected: tochaAtiva }}
-          >
-            <Ionicons name={tochaAtiva ? 'flash' : 'flash-off'} size={20} color={tochaAtiva ? '#22b7d4' : '#ffffff'} />
-          </TouchableOpacity>
+          <View style={styles.acoesTopoDireita}>
+            <TouchableOpacity
+              style={styles.botaoCircular}
+              activeOpacity={0.7}
+              onPress={() => setCameraTipo((atual) => (atual === 'back' ? 'front' : 'back'))}
+              accessibilityRole="button"
+              accessibilityLabel="Alternar câmera"
+            >
+              <Ionicons name="camera-reverse-outline" size={20} color="#ffffff" />
+            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity
+                style={[styles.botaoCircular, tochaAtiva && styles.botaoCircularAtivo]}
+                activeOpacity={0.7}
+                onPress={() => setTochaAtiva(!tochaAtiva)}
+                accessibilityRole="button"
+                accessibilityLabel={tochaAtiva ? 'Desligar lanterna' : 'Ligar lanterna'}
+                accessibilityState={{ selected: tochaAtiva }}
+              >
+                <Ionicons name={tochaAtiva ? 'flash' : 'flash-off'} size={20} color={tochaAtiva ? '#22b7d4' : '#ffffff'} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Retícula / Moldura Central de Foco */}
-        <View style={styles.conteinerCentro}>
+        <View style={styles.conteinerCentro} pointerEvents="none">
           <View style={styles.reticula}>
             {/* Cantoneiras Estilizadas da Moldura */}
             <View style={[styles.cantoneira, styles.cantoSuperiorEsquerdo]} />
@@ -199,6 +274,16 @@ export default function EscanearQRCodeScreen() {
           <Text style={styles.subDica}>
             O código será lido automaticamente ao ser enquadrado na moldura.
           </Text>
+
+          <TouchableOpacity
+            style={styles.botaoGaleria}
+            accessibilityRole="button"
+            activeOpacity={0.8}
+            onPress={() => void handleLerDaGaleria()}
+          >
+            <Ionicons name="image-outline" size={16} color="#22b7d4" style={{ marginRight: 6 }} />
+            <Text style={styles.textoBotaoGaleria}>Ler imagem de QR Code da galeria</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.botaoDigitarManual}
@@ -235,6 +320,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10
+  },
+  acoesTopoDireita: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
   },
   tituloTopo: {
     color: '#ffffff',
@@ -316,7 +406,7 @@ const styles = StyleSheet.create({
   },
   rodape: {
     paddingHorizontal: 24,
-    paddingBottom: 28,
+    paddingBottom: 24,
     alignItems: 'center'
   },
   badgeDica: {
@@ -340,12 +430,28 @@ const styles = StyleSheet.create({
     color: '#9db1bd',
     fontSize: 12,
     textAlign: 'center',
-    marginBottom: 16
+    marginBottom: 12
+  },
+  botaoGaleria: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 183, 212, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 183, 212, 0.4)',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    marginBottom: 6
+  },
+  textoBotaoGaleria: {
+    color: '#22b7d4',
+    fontSize: 13,
+    fontWeight: '700'
   },
   botaoDigitarManual: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16
   },
   textoDigitarManual: {
@@ -390,12 +496,31 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     minHeight: 52,
-    marginBottom: 14
+    marginBottom: 10
   },
   textoBotaoPermissao: {
     color: '#07131b',
     fontSize: 15,
     fontWeight: 'bold'
+  },
+  botaoGaleriaPermissao: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(34, 183, 212, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 183, 212, 0.35)',
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 420,
+    marginBottom: 12
+  },
+  textoBotaoGaleriaPermissao: {
+    color: '#22b7d4',
+    fontSize: 14,
+    fontWeight: '700'
   },
   botaoVoltarSimples: {
     paddingVertical: 10
