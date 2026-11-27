@@ -21,6 +21,7 @@ import {
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
 import { montarBarrasConsumo } from '@/utils/barras-consumo';
+import { calcularFaturaEdpMensal } from '@/utils/tarifas';
 import { exportarRelatorioConsumo } from '@/utils/exportar-relatorio';
 import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
@@ -109,8 +110,12 @@ export default function EnergiaScreen() {
   const acumuladoMesKwh = totaisDisponiveis
     ? Number(statusBaseline.energiaAcumuladaMesKwh ?? 0).toFixed(2)
     : '--';
+  const previsaoMesKwhNum = Number(statusBaseline.previsaoEnergiaMesInteiroKwh ?? (statusBaseline.mediaEnergiaKwhDia * 30));
   const previsaoMes = totaisDisponiveis
-    ? Number(statusBaseline.previsaoEnergiaMesInteiroKwh ?? (statusBaseline.mediaEnergiaKwhDia * 30)).toFixed(2)
+    ? previsaoMesKwhNum.toFixed(2)
+    : '--';
+  const faturaEdpPrevista = totaisDisponiveis
+    ? `R$ ${calcularFaturaEdpMensal(previsaoMesKwhNum).toFixed(2).replace('.', ',')}`
     : '--';
 
   // Calcula medias reais do historico
@@ -239,6 +244,11 @@ export default function EnergiaScreen() {
               icone="calendar-outline"
               rotulo={`Previsão mês inteiro (${diasComputadosMes}d + ${diasRestantesMes}d)`}
               valor={`${previsaoMes} kWh`}
+            />
+            <LinhaResumo
+              icone="cash-outline"
+              rotulo="Fatura prevista (EDP SP)"
+              valor={faturaEdpPrevista}
               ultima
             />
             {totaisDisponiveis && (

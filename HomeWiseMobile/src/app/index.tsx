@@ -27,13 +27,10 @@ import {
   StatusBaseline
 } from '@/services/baselineService';
 import { calcularConsumoPorPeriodo } from '@/utils/grafico-periodos';
+import { calcularResumoFinanceiroResidencial } from '@/utils/tarifas';
 import { detectarFluxoContinuoAgua } from '@/utils/vazamento';
 
 import { useAuth } from '@/contexts/AuthContext';
-
-// Tarifas medias para calculo financeiro (R$ por unidade)
-const TARIFA_AGUA_POR_LITRO = 0.0085; // ~R$ 8,50 por m³ (1000L)
-const TARIFA_ENERGIA_KWH = 0.85;      // ~R$ 0,85 por kWh
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -118,25 +115,29 @@ export default function HomeScreen() {
   const aguaMesPrevisto = totaisDisponiveis ? Number(aguaPrevistaMesNum).toFixed(0) : '--';
   const energiaMesPrevisto = totaisDisponiveis ? Number(energiaPrevistaMesNum).toFixed(1) : '--';
 
-  // Custo estimado do mes inteiro: soma os dias ja computados no mes + (dias restantes * media aprendida)
-  const custoAgua = aguaPrevistaMesNum * TARIFA_AGUA_POR_LITRO;
-  const custoEnergia = energiaPrevistaMesNum * TARIFA_ENERGIA_KWH;
-  const totalPrevisto = totaisDisponiveis ? (custoAgua + custoEnergia).toFixed(2) : '--';
+  // Custo estimado do mes inteiro pelas tarifas reais Sabesp (Poa/Suzano) + EDP Sao Paulo (B1 + ICMS/PIS/COFINS + CIP)
+  const financeiro = calcularResumoFinanceiroResidencial({
+    aguaHojeLitros: aguaHojeNum,
+    energiaHojeKwh: energiaHojeNum,
+    aguaAcumuladaMesLitros: aguaMesNum,
+    energiaAcumuladaMesKwh: energiaMesNum,
+    mediaAguaDiaLitros: statusBaseline.mediaAguaLitrosDia,
+    mediaEnergiaDiaKwh: statusBaseline.mediaEnergiaKwhDia,
+    aguaPrevistaMesLitros: aguaPrevistaMesNum,
+    energiaPrevistaMesKwh: energiaPrevistaMesNum
+  });
+
+  const totalPrevisto = totaisDisponiveis ? financeiro.custoTotalPrevistoMes.toFixed(2) : '--';
+  const custoAguaMesPrevisto = totaisDisponiveis ? financeiro.custoAguaPrevistoMes.toFixed(2).replace('.', ',') : '--';
+  const custoEnergiaMesPrevisto = totaisDisponiveis ? financeiro.custoEnergiaPrevistoMes.toFixed(2).replace('.', ',') : '--';
 
   // Valores financeiros (R$) gastos hoje, acumulados nos dias medidos e media diaria prevista
-  const custoAguaHojeNum = aguaHojeNum * TARIFA_AGUA_POR_LITRO;
-  const custoEnergiaHojeNum = energiaHojeNum * TARIFA_ENERGIA_KWH;
-  const custoTotalHoje = totaisDisponiveis ? (custoAguaHojeNum + custoEnergiaHojeNum).toFixed(2).replace('.', ',') : '--';
-  const custoAguaHoje = totaisDisponiveis ? custoAguaHojeNum.toFixed(2).replace('.', ',') : '--';
-  const custoEnergiaHoje = totaisDisponiveis ? custoEnergiaHojeNum.toFixed(2).replace('.', ',') : '--';
+  const custoTotalHoje = totaisDisponiveis ? financeiro.custoTotalHoje.toFixed(2).replace('.', ',') : '--';
+  const custoAguaHoje = totaisDisponiveis ? financeiro.custoAguaHoje.toFixed(2).replace('.', ',') : '--';
+  const custoEnergiaHoje = totaisDisponiveis ? financeiro.custoEnergiaHoje.toFixed(2).replace('.', ',') : '--';
 
-  const custoAcumuladoMesNum = (aguaMesNum * TARIFA_AGUA_POR_LITRO) + (energiaMesNum * TARIFA_ENERGIA_KWH);
-  const custoAcumuladoMes = totaisDisponiveis ? custoAcumuladoMesNum.toFixed(2).replace('.', ',') : '--';
-
-  const custoMedioDiaAprendidoNum =
-    (statusBaseline.mediaAguaLitrosDia * TARIFA_AGUA_POR_LITRO) +
-    (statusBaseline.mediaEnergiaKwhDia * TARIFA_ENERGIA_KWH);
-  const custoMedioDiaAprendido = totaisDisponiveis ? custoMedioDiaAprendidoNum.toFixed(2).replace('.', ',') : '--';
+  const custoAcumuladoMes = totaisDisponiveis ? financeiro.custoAcumuladoMes.toFixed(2).replace('.', ',') : '--';
+  const custoMedioDiaAprendido = totaisDisponiveis ? financeiro.custoMedioDiaAprendido.toFixed(2).replace('.', ',') : '--';
 
   // Deteccao automatica de anomalias/vazamento (apenas quando a central esta transmitindo ao vivo)
   const prefsNotif = perfil?.preferencias_notificacoes;
@@ -302,8 +303,8 @@ export default function HomeScreen() {
                   <Ionicons name="calculator-outline" size={13} color={C.textoTer} />
                   <Text style={styles.contaSub}>
                     {totaisDisponiveis
-                      ? `${diasComputadosMes}d medidos + ${diasRestantesMes}d pela média aprendida`
-                      : 'Baseado na tarifa de consumo atual'}
+                      ? `${diasComputadosMes}d medidos + ${diasRestantesMes}d pela média • Sabesp + EDP SP`
+                      : 'Tarifas residenciais Sabesp + EDP SP (Bandeira Verde)'}
                   </Text>
                 </View>
                 <SeloDesatualizado visivel={totaisDesatualizados} />
@@ -343,7 +344,7 @@ export default function HomeScreen() {
               unidade="L"
               gastoDia={totaisDisponiveis ? `Gasto no dia: R$ ${custoAguaHoje}` : undefined}
               mesMedido={totaisDisponiveis ? `${aguaMes} L (${diasComputadosMes}d)` : `${aguaMes} L este mês`}
-              previsaoMes={totaisDisponiveis ? `Previsto: ${aguaMesPrevisto} L` : undefined}
+              previsaoMes={totaisDisponiveis ? `Prev.: ${aguaMesPrevisto} L • R$ ${custoAguaMesPrevisto}` : undefined}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/agua')}
             />
@@ -355,7 +356,7 @@ export default function HomeScreen() {
               unidade="kWh"
               gastoDia={totaisDisponiveis ? `Gasto no dia: R$ ${custoEnergiaHoje}` : undefined}
               mesMedido={totaisDisponiveis ? `${energiaMes} kWh (${diasComputadosMes}d)` : `${energiaMes} kWh este mês`}
-              previsaoMes={totaisDisponiveis ? `Previsto: ${energiaMesPrevisto} kWh` : undefined}
+              previsaoMes={totaisDisponiveis ? `Prev.: ${energiaMesPrevisto} kWh • R$ ${custoEnergiaMesPrevisto}` : undefined}
               desatualizado={totaisDesatualizados}
               onPress={() => router.push('/energia')}
             />

@@ -21,6 +21,7 @@ import {
   obterRotuloConsumoPorPeriodo
 } from '@/utils/grafico-periodos';
 import { montarBarrasConsumo } from '@/utils/barras-consumo';
+import { calcularFaturaSabespMensal } from '@/utils/tarifas';
 import { exportarRelatorioConsumo } from '@/utils/exportar-relatorio';
 import { C } from '@/constants/hw-tema';
 import CabecalhoTela from '@/components/hw/CabecalhoTela';
@@ -106,8 +107,12 @@ export default function AguaScreen() {
   const acumuladoMesLitros = totaisDisponiveis
     ? Number(statusBaseline.aguaAcumuladaMesLitros ?? 0).toFixed(1)
     : '--';
+  const previsaoMesLitrosNum = Number(statusBaseline.previsaoAguaMesInteiroLitros ?? (statusBaseline.mediaAguaLitrosDia * 30));
   const previsaoMesLitros = totaisDisponiveis
-    ? Number(statusBaseline.previsaoAguaMesInteiroLitros ?? (statusBaseline.mediaAguaLitrosDia * 30)).toFixed(1)
+    ? previsaoMesLitrosNum.toFixed(1)
+    : '--';
+  const faturaSabespPrevista = totaisDisponiveis
+    ? `R$ ${calcularFaturaSabespMensal(previsaoMesLitrosNum).toFixed(2).replace('.', ',')}`
     : '--';
 
   // Calcula medias reais do historico
@@ -236,6 +241,11 @@ export default function AguaScreen() {
               icone="calendar-outline"
               rotulo={`Previsão mês inteiro (${diasComputadosMes}d + ${diasRestantesMes}d)`}
               valor={`${previsaoMesLitros} L`}
+            />
+            <LinhaResumo
+              icone="cash-outline"
+              rotulo="Fatura prevista (Sabesp)"
+              valor={faturaSabespPrevista}
               ultima
             />
             {totaisDisponiveis && (
